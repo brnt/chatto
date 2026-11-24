@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chattocorp/chatto/cli/internal/authctx"
+	"github.com/chattocorp/chatto/cli/internal/config"
+	"github.com/chattocorp/chatto/cli/internal/readmodel"
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -86,9 +89,25 @@ func TestHandleShareTarget_BasicParsing(t *testing.T) {
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
+		config: config.ChattoConfig{
+			Core: config.CoreConfig{
+				Assets: config.AssetsConfig{
+					MaxUploadSize: 25 * 1024 * 1024,
+				},
+			},
+		},
 		shareDataStore: store,
 		logger:         logger,
 	}
+	
+	// Add middleware to inject a fake user context
+	router.Use(func(c *gin.Context) {
+		user := &readmodel.User{Id: "test-user-id"}
+		ctx := authctx.WithUser(c.Request.Context(), user)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+	
 	router.POST("/share", srv.handleShareTarget)
 	
 	// Create multipart form
@@ -136,9 +155,25 @@ func TestHandleShareTarget_FileUpload(t *testing.T) {
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
+		config: config.ChattoConfig{
+			Core: config.CoreConfig{
+				Assets: config.AssetsConfig{
+					MaxUploadSize: 25 * 1024 * 1024,
+				},
+			},
+		},
 		shareDataStore: store,
 		logger:         logger,
 	}
+	
+	// Add middleware to inject a fake user context
+	router.Use(func(c *gin.Context) {
+		user := &readmodel.User{Id: "test-user-id"}
+		ctx := authctx.WithUser(c.Request.Context(), user)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+	
 	router.POST("/share", srv.handleShareTarget)
 	
 	// Create multipart form with a file
@@ -200,19 +235,32 @@ func TestHandleShareTarget_FileSizeLimit(t *testing.T) {
 	
 	c.Request = httptest.NewRequest(http.MethodPost, "/share", body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Request.Header.Set("Sec-Fetch-Site", "none")
+	
+	// Inject user context
+	user := &readmodel.User{Id: "test-user-id"}
+	ctx := authctx.WithUser(c.Request.Context(), user)
+	c.Request = c.Request.WithContext(ctx)
 	
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
+		config: config.ChattoConfig{
+			Core: config.CoreConfig{
+				Assets: config.AssetsConfig{
+					MaxUploadSize: 25 * 1024 * 1024,
+				},
+			},
+		},
 		shareDataStore: store,
 		logger:         logger,
 	}
 	
 	srv.handleShareTarget(c)
 	
-	// Should return error
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "is too large")
+	// Should return error (413 Request Entity Too Large)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	assert.Contains(t, w.Body.String(), "too large")
 }
 
 func TestHandleShareTarget_FileCountLimit(t *testing.T) {
@@ -238,10 +286,23 @@ func TestHandleShareTarget_FileCountLimit(t *testing.T) {
 	
 	c.Request = httptest.NewRequest(http.MethodPost, "/share", body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Request.Header.Set("Sec-Fetch-Site", "none")
+	
+	// Inject user context
+	user := &readmodel.User{Id: "test-user-id"}
+	ctx := authctx.WithUser(c.Request.Context(), user)
+	c.Request = c.Request.WithContext(ctx)
 	
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
+		config: config.ChattoConfig{
+			Core: config.CoreConfig{
+				Assets: config.AssetsConfig{
+					MaxUploadSize: 25 * 1024 * 1024,
+				},
+			},
+		},
 		shareDataStore: store,
 		logger:         logger,
 	}
@@ -261,8 +322,10 @@ func TestHandleShareDataAPI_Success(t *testing.T) {
 	
 	// Add test data
 	shareID := "test-share-id"
+	userID := "test-user-id"
 	testData := &ShareData{
 		ID:        shareID,
+		UserID:    userID,
 		Title:     "API Test",
 		Text:      "Some text",
 		URL:       "https://example.com",
@@ -279,6 +342,11 @@ func TestHandleShareDataAPI_Success(t *testing.T) {
 	c.Params = gin.Params{{Key: "id", Value: shareID}}
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/share/"+shareID, nil)
 	
+	// Inject user context (same user who created the share)
+	user := &readmodel.User{Id: userID}
+	ctx := authctx.WithUser(c.Request.Context(), user)
+	c.Request = c.Request.WithContext(ctx)
+	
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
@@ -291,6 +359,12 @@ func TestHandleShareDataAPI_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "API Test")
 	assert.Contains(t, w.Body.String(), "Some text")
+	
+	// Verify data was deleted after first read
+	store.mu.RLock()
+	_, exists := store.entries[shareID]
+	store.mu.RUnlock()
+	assert.False(t, exists, "share data should be deleted after first read")
 }
 
 func TestHandleShareDataAPI_NotFound(t *testing.T) {
@@ -303,6 +377,11 @@ func TestHandleShareDataAPI_NotFound(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Params = gin.Params{{Key: "id", Value: "nonexistent"}}
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/share/nonexistent", nil)
+	
+	// Inject user context
+	user := &readmodel.User{Id: "test-user-id"}
+	ctx := authctx.WithUser(c.Request.Context(), user)
+	c.Request = c.Request.WithContext(ctx)
 	
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
@@ -324,8 +403,10 @@ func TestHandleShareDataAPI_Expired(t *testing.T) {
 	
 	// Add expired data
 	shareID := "expired-share"
+	userID := "test-user-id"
 	testData := &ShareData{
 		ID:        shareID,
+		UserID:    userID,
 		Title:     "Expired",
 		CreatedAt: time.Now().Add(-10 * time.Minute),
 	}
@@ -339,6 +420,11 @@ func TestHandleShareDataAPI_Expired(t *testing.T) {
 	c.Params = gin.Params{{Key: "id", Value: shareID}}
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/share/"+shareID, nil)
 	
+	// Inject user context (same user who created the share)
+	user := &readmodel.User{Id: userID}
+	ctx := authctx.WithUser(c.Request.Context(), user)
+	c.Request = c.Request.WithContext(ctx)
+	
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
@@ -348,8 +434,8 @@ func TestHandleShareDataAPI_Expired(t *testing.T) {
 	
 	srv.handleShareDataAPI(c)
 	
-	// API returns the data even if expired; cleanup goroutine will remove it later
-	// In a real scenario, the frontend would check CreatedAt
+	// GetAndDelete does not check expiration; cleanup goroutine removes expired entries
+	// The API returns the data even if expired; frontend should check CreatedAt
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
@@ -369,10 +455,23 @@ func TestHandleShareTarget_NoOpenRedirect(t *testing.T) {
 	
 	c.Request = httptest.NewRequest(http.MethodPost, "/share", body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Request.Header.Set("Sec-Fetch-Site", "none")
+	
+	// Inject user context
+	user := &readmodel.User{Id: "test-user-id"}
+	ctx := authctx.WithUser(c.Request.Context(), user)
+	c.Request = c.Request.WithContext(ctx)
 	
 	logger := log.New(nil)
 	logger.SetLevel(log.FatalLevel)
 	srv := &HTTPServer{
+		config: config.ChattoConfig{
+			Core: config.CoreConfig{
+				Assets: config.AssetsConfig{
+					MaxUploadSize: 25 * 1024 * 1024,
+				},
+			},
+		},
 		shareDataStore: store,
 		logger:         logger,
 	}
