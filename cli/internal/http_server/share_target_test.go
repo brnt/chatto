@@ -76,15 +76,104 @@ func TestShareDataStore_IDUnguessability(t *testing.T) {
 }
 
 func TestHandleShareTarget_BasicParsing(t *testing.T) {
-	t.Skip("Skipping due to Gin test context redirect limitations")
-	// This test would work with a full router but not with direct handler calls
-	// The functionality is covered by integration tests
+	gin.SetMode(gin.TestMode)
+	
+	store := newShareDataStore()
+	defer store.Stop()
+	
+	// Create a full router to test redirects properly
+	router := gin.New()
+	logger := log.New(nil)
+	logger.SetLevel(log.FatalLevel)
+	srv := &HTTPServer{
+		shareDataStore: store,
+		logger:         logger,
+	}
+	router.POST("/share", srv.handleShareTarget)
+	
+	// Create multipart form
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.WriteField("title", "Test Title")
+	writer.WriteField("text", "Test text content")
+	writer.WriteField("url", "https://example.com")
+	writer.Close()
+	
+	req := httptest.NewRequest(http.MethodPost, "/share", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+	
+	router.ServeHTTP(w, req)
+	
+	// Should redirect with 303 See Other
+	assert.Equal(t, http.StatusSeeOther, w.Code)
+	
+	// Extract share ID from redirect location
+	location := w.Header().Get("Location")
+	assert.True(t, strings.HasPrefix(location, "/share/"))
+	shareID := strings.TrimPrefix(location, "/share/")
+	
+	// Verify data was stored
+	store.mu.RLock()
+	shareData := store.entries[shareID]
+	store.mu.RUnlock()
+	
+	require.NotNil(t, shareData)
+	assert.Equal(t, "Test Title", shareData.Title)
+	assert.Equal(t, "Test text content", shareData.Text)
+	assert.Equal(t, "https://example.com", shareData.URL)
+	assert.Empty(t, shareData.Files)
 }
 
 func TestHandleShareTarget_FileUpload(t *testing.T) {
-	t.Skip("Skipping due to Gin test context redirect limitations")
-	// This test would work with a full router but not with direct handler calls
-	// The functionality is covered by integration tests
+	gin.SetMode(gin.TestMode)
+	
+	store := newShareDataStore()
+	defer store.Stop()
+	
+	// Create a full router
+	router := gin.New()
+	logger := log.New(nil)
+	logger.SetLevel(log.FatalLevel)
+	srv := &HTTPServer{
+		shareDataStore: store,
+		logger:         logger,
+	}
+	router.POST("/share", srv.handleShareTarget)
+	
+	// Create multipart form with a file
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.WriteField("title", "File share")
+	
+	// Add a small test file
+	fileWriter, err := writer.CreateFormFile("files", "test.txt")
+	require.NoError(t, err)
+	fileWriter.Write([]byte("test file content"))
+	
+	writer.Close()
+	
+	req := httptest.NewRequest(http.MethodPost, "/share", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+	
+	router.ServeHTTP(w, req)
+	
+	assert.Equal(t, http.StatusSeeOther, w.Code)
+	
+	location := w.Header().Get("Location")
+	require.True(t, strings.HasPrefix(location, "/share/"))
+	shareID := strings.TrimPrefix(location, "/share/")
+	
+	store.mu.RLock()
+	shareData := store.entries[shareID]
+	store.mu.RUnlock()
+	
+	require.NotNil(t, shareData)
+	require.Len(t, shareData.Files, 1)
+	assert.Equal(t, "test.txt", shareData.Files[0].Filename)
+	assert.Equal(t, "application/octet-stream", shareData.Files[0].ContentType)
+	assert.Equal(t, []byte("test file content"), shareData.Files[0].Data)
 }
 
 func TestHandleShareTarget_FileSizeLimit(t *testing.T) {
