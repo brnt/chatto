@@ -100,7 +100,7 @@
 				name: room.name,
 				serverId
 			}));
-			roomsLoadError = rooms.length === 0;
+			roomsLoadError = roomList.length === 0;
 		}
 
 		// Set a timeout for error state if loading takes too long
