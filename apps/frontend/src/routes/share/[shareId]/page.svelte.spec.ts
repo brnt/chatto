@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { serverIdToSegment } from '$lib/navigation';
 import { stashShare, takeShare, type ShareData } from '$lib/state/pendingShare';
+import { buildShareText } from '$lib/share/buildShareText';
 
 vi.mock('$lib/navigation', () => ({
 	serverIdToSegment: vi.fn()
@@ -98,16 +99,6 @@ describe('share data stashing', () => {
 });
 
 describe('share text formatting', () => {
-	function buildShareText(shareData: ShareData): string {
-		const lines: string[] = [];
-		if (shareData.title) lines.push(shareData.title);
-		if (shareData.text) lines.push(shareData.text);
-		if (shareData.url && !lines.join('\n').includes(shareData.url)) {
-			lines.push(shareData.url);
-		}
-		return lines.join('\n\n').trim();
-	}
-
 	it('builds plain text without quote markers', () => {
 		const shareData: ShareData = {
 			id: 'share-789',

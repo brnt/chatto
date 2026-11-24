@@ -173,7 +173,7 @@
 								{#if data.shareData.files && data.shareData.files.length > 0}
 									<div class="mt-3 space-y-1">
 										<div class="text-sm font-medium">{m('chat.share.files')}:</div>
-										{#each data.shareData.files as file (file.filename)}
+										{#each data.shareData.files as file, i (`${i}-${file.filename}`)}
 											<div class="text-sm text-muted">
 												📎 {file.filename} ({Math.round(file.size / 1024)} KB)
 											</div>

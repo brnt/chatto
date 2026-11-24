@@ -57,6 +57,7 @@ thread IDs can change while the pane stays mounted.
   import { createComposerContext, getRoomMembers, type MessagesStore } from '$lib/state/room';
   import { useServerScope } from '$lib/state/server/scope.svelte';
   import { takeShare, type ShareData } from '$lib/state/pendingShare';
+  import { buildShareText } from '$lib/share/buildShareText';
   import { EmptyState, Hint } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import EventList from './EventList.svelte';
@@ -70,7 +71,6 @@ thread IDs can change while the pane stays mounted.
   import { clearTimelineViewport } from '$lib/state/room/timelineViewport';
   import { replaceState } from '$app/navigation';
   import { page } from '$app/state';
-  import { resolve } from '$app/paths';
 
   let {
     roomId,
@@ -393,27 +393,8 @@ thread IDs can change while the pane stays mounted.
           await api!.addFiles(files);
         }
         
-        // Build text content with deduplication
-        const lines: string[] = [];
-        
-        if (shareData.title) {
-          lines.push(shareData.title);
-        }
-        
-        if (shareData.text) {
-          lines.push(shareData.text);
-        }
-        
-        // Only add URL if it's not already in the text
-        if (shareData.url) {
-          const existingText = lines.join('\n');
-          if (!existingText.includes(shareData.url)) {
-            lines.push(shareData.url);
-          }
-        }
-        
         // Insert text into composer as plain text (no quote markers)
-        const text = lines.join('\n\n').trim();
+        const text = buildShareText(shareData);
         if (text) {
           api!.insertText(text);
         }
@@ -424,12 +405,11 @@ thread IDs can change while the pane stays mounted.
         console.error('Error loading share data:', error);
         toast.error(m('chat.share.load_failed'));
       } finally {
-        // Always clear shareId from URL
-        const cleanPath = resolve('/chat/[serverId]/[roomId]', {
-          serverId: page.params.serverId,
-          roomId: page.params.roomId
-        });
-        replaceState(cleanPath, {});
+        // Always clear shareId from URL while preserving path, other params, and hash
+        const url = new URL(page.url);
+        url.searchParams.delete('shareId');
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- preserving current path/search/hash, cannot use resolve() for dynamic thread/message paths
+        replaceState(url.toString(), {});
       }
     }
     

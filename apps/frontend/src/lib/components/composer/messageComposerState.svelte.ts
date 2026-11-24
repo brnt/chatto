@@ -165,6 +165,7 @@ export class MessageComposerState {
   #threadCreationPolicyKey = '';
   #threadDestinationChoicePending = false;
   #cancelPreviewDetection: (() => void) | undefined;
+  #pendingInsertText: string | null = null;
   pendingThreadDestinationConfirmation = $state<{
     post: PreparedPost;
     candidate: RecentThreadRootCandidate;
@@ -311,7 +312,15 @@ export class MessageComposerState {
   }
 
   insertText(text: string): void {
-    tick().then(() => this.editorApi?.insertText(text));
+    const api = this.editorApi;
+    if (!api) {
+      // Editor not ready yet; queue the text to insert after editor attaches
+      this.#pendingInsertText = this.#pendingInsertText ? `${this.#pendingInsertText}${text}` : text;
+      return;
+    }
+    tick().then(() => {
+      if (this.editorApi === api) api.insertText(text);
+    });
   }
 
   handlePaste(event: ClipboardEvent): boolean {
@@ -423,6 +432,11 @@ export class MessageComposerState {
   handleEditorReady(api: ComposerEditorApi): void {
     this.editorApi = api;
     if (this.message) api.setContent(this.message);
+    // Flush any text that was queued before the editor was ready
+    if (this.#pendingInsertText) {
+      api.insertText(this.#pendingInsertText);
+      this.#pendingInsertText = null;
+    }
     if (this.#focusRequested) this.focus();
   }
 
@@ -461,6 +475,7 @@ export class MessageComposerState {
         // Transfer the old draft's files once. Later attachment edits belong
         // to the new draft and must not retrigger this route transition.
         this.draft.stashFiles(untrack(() => this.attachments.filesWithUrls));
+        this.#pendingInsertText = null;
         if (this.isEditing) this.#dropEdit();
       }
 
@@ -574,6 +589,7 @@ export class MessageComposerState {
   #resetEditor(): void {
     this.autocomplete.reset();
     this.#setMessage('');
+    this.#pendingInsertText = null;
     this.alsoSendToChannel = false;
     this.createThread =
       this.#dependencies.getCanCreateThread() &&
