@@ -67,6 +67,8 @@ thread IDs can change while the pane stays mounted.
   import { isMessagePostedEvent } from '@chatto/client/timeline/timelineEvents';
   import { ReadThroughTracker, type TimelineReadPosition } from './readThroughTracker';
   import { clearTimelineViewport } from '$lib/state/room/timelineViewport';
+  import { replaceState } from '$app/navigation';
+  import { page } from '$app/state';
 
   let {
     roomId,
@@ -332,6 +334,80 @@ thread IDs can change while the pane stays mounted.
   });
 
   let composerApi = $state<MessageComposerApi | null>(null);
+
+  // Handle Web Share Target data
+  let shareDataProcessed = $state(false);
+  $effect(() => {
+    const api = composerApi;
+    if (!api) return;
+    
+    // Check for shareId parameter
+    const shareId = page.url.searchParams.get('shareId');
+    if (!shareId || shareDataProcessed) return;
+    
+    shareDataProcessed = true;
+    
+    async function loadShareData() {
+      try {
+        // Fetch share data from API
+        const response = await fetch(`/api/share/${shareId}`);
+        if (!response.ok) {
+          console.error('Failed to load share data');
+          return;
+        }
+        
+        const shareData = await response.json();
+        
+        // Convert base64 files to File objects
+        if (shareData.files && shareData.files.length > 0) {
+          const files = await Promise.all(
+            shareData.files.map(async (fileData: { data: string; contentType: string; filename: string }) => {
+              const binary = atob(fileData.data);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: fileData.contentType });
+              return new File([blob], fileData.filename, { type: fileData.contentType });
+            })
+          );
+          
+          // Add files to composer
+          await api!.addFiles(files);
+        }
+        
+        // Build text content
+        let text = '';
+        if (shareData.title) {
+          text += `${shareData.title}\n\n`;
+        }
+        if (shareData.text) {
+          text += shareData.text;
+        }
+        if (shareData.url) {
+          if (text) text += '\n\n';
+          text += shareData.url;
+        }
+        
+        // Insert text into composer
+        if (text) {
+          quoteInsertionState.requestInsertQuote(text.trim());
+        }
+        
+        // Focus composer
+        api!.focus();
+        
+        // Remove shareId from URL
+        const url = new URL(page.url);
+        url.searchParams.delete('shareId');
+        replaceState(url.toString(), {});
+      } catch (error) {
+        console.error('Error processing share data:', error);
+      }
+    }
+    
+    void loadShareData();
+  });
 
   // Apply a quote or reply that another pane requested before this composer existed.
   $effect(() => {
