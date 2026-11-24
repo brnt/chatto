@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chattocorp/chatto/cli/internal/authctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,16 +20,21 @@ const (
 	shareDataMaxFileSize    = 25 * 1024 * 1024 // 25 MB, matches default max_upload_size
 	shareDataCleanupPeriod  = 1 * time.Minute
 	shareFormMaxMemory      = 32 * 1024 * 1024 // 32 MB in memory before temp files
+	shareDataMaxEntries     = 100              // Global cap on stored entries
+	shareDataMaxTotalBytes  = 100 * 1024 * 1024 // 100 MB total storage cap
 )
 
 // ShareData holds the data received from the Web Share Target API.
+// Each entry is bound to the user who created it.
 type ShareData struct {
 	ID        string
+	UserID    string // Owner of this share data
 	Title     string
 	Text      string
 	URL       string
 	Files     []ShareFile
 	CreatedAt time.Time
+	SizeBytes int64 // Total size for quota enforcement
 }
 
 // ShareFile represents a shared file.
@@ -40,10 +46,12 @@ type ShareFile struct {
 }
 
 // shareDataStore manages temporary share data with automatic cleanup.
+// Enforces global caps on entries and total storage to prevent DoS.
 type shareDataStore struct {
-	mu      sync.RWMutex
-	entries map[string]*ShareData
-	stopCh  chan struct{}
+	mu         sync.RWMutex
+	entries    map[string]*ShareData
+	totalBytes int64
+	stopCh     chan struct{}
 }
 
 func newShareDataStore() *shareDataStore {
@@ -55,23 +63,45 @@ func newShareDataStore() *shareDataStore {
 	return s
 }
 
-func (s *shareDataStore) Put(data *ShareData) {
+// Put stores share data if global caps aren't exceeded.
+// Returns an error if the caps are reached.
+func (s *shareDataStore) Put(data *ShareData) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if len(s.entries) >= shareDataMaxEntries {
+		return fmt.Errorf("share storage full (max %d entries)", shareDataMaxEntries)
+	}
+
+	if s.totalBytes+data.SizeBytes > shareDataMaxTotalBytes {
+		return fmt.Errorf("share storage full (max %d MB total)", shareDataMaxTotalBytes/(1024*1024))
+	}
+
 	s.entries[data.ID] = data
+	s.totalBytes += data.SizeBytes
+	return nil
 }
 
-func (s *shareDataStore) Get(id string) (*ShareData, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	data, ok := s.entries[id]
-	return data, ok
-}
-
-func (s *shareDataStore) Delete(id string) {
+// GetAndDelete retrieves share data and immediately deletes it (single-use).
+// Only returns data if the userId matches the owner.
+func (s *shareDataStore) GetAndDelete(id string, userId string) (*ShareData, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	data, ok := s.entries[id]
+	if !ok {
+		return nil, false
+	}
+
+	// Only the owner can read their share data
+	if data.UserID != userId {
+		return nil, false
+	}
+
+	// Delete on first read (single-use)
 	delete(s.entries, id)
+	s.totalBytes -= data.SizeBytes
+	return data, true
 }
 
 func (s *shareDataStore) cleanupLoop() {
@@ -96,6 +126,7 @@ func (s *shareDataStore) cleanup() {
 	for id, data := range s.entries {
 		if now.Sub(data.CreatedAt) > shareDataTTL {
 			delete(s.entries, id)
+			s.totalBytes -= data.SizeBytes
 		}
 	}
 }
@@ -114,7 +145,40 @@ func generateShareID() (string, error) {
 }
 
 // handleShareTarget handles POST requests from the Web Share Target API.
+// Requires authentication and validates origin to prevent CSRF and DoS attacks.
 func (s *HTTPServer) handleShareTarget(c *gin.Context) {
+	// Inject user into context for authentication
+	c.Request = s.injectUserIntoContext(c)
+	
+	// Require authenticated session to prevent anonymous DoS
+	user := authctx.ForContext(c.Request.Context())
+	if user == nil {
+		// Redirect to login; user can re-share after signing in
+		c.Redirect(http.StatusSeeOther, "/login?return=/")
+		return
+	}
+	userId := user.Id
+
+	// Validate origin to prevent CSRF from third-party sites.
+	// Web Share Target sends Sec-Fetch-Site: none (from share sheet) or same-origin (from browser).
+	// We reject cross-site requests to prevent malicious sites from forging shares.
+	secFetchSite := c.GetHeader("Sec-Fetch-Site")
+	if secFetchSite != "" && secFetchSite != "none" && secFetchSite != "same-origin" {
+		s.logger.Warn("rejected cross-site share attempt", "sec-fetch-site", secFetchSite)
+		c.String(http.StatusForbidden, "Cross-site share requests are not allowed")
+		return
+	}
+
+	// Enforce overall body size limit based on configured max upload size
+	maxBodySize := int64(s.config.Core.Assets.MaxUploadSize)
+	if maxBodySize == 0 {
+		maxBodySize = shareDataMaxFileSize // Default to per-file limit if not configured
+	}
+	if c.Request.ContentLength > 0 && c.Request.ContentLength > maxBodySize {
+		c.String(http.StatusRequestEntityTooLarge, fmt.Sprintf("Request too large (max %d MB)", maxBodySize/(1024*1024)))
+		return
+	}
+
 	// Parse multipart form with size limit
 	if err := c.Request.ParseMultipartForm(shareFormMaxMemory); err != nil {
 		s.logger.Warn("failed to parse share target form", "error", err)
@@ -131,11 +195,15 @@ func (s *HTTPServer) handleShareTarget(c *gin.Context) {
 
 	shareData := &ShareData{
 		ID:        shareID,
+		UserID:    userId,
 		Title:     c.PostForm("title"),
 		Text:      c.PostForm("text"),
 		URL:       c.PostForm("url"),
 		CreatedAt: time.Now(),
 	}
+
+	// Calculate size for quota enforcement
+	shareData.SizeBytes = int64(len(shareData.Title) + len(shareData.Text) + len(shareData.URL))
 
 	// Process shared files
 	if c.Request.MultipartForm != nil && c.Request.MultipartForm.File != nil {
@@ -172,11 +240,16 @@ func (s *HTTPServer) handleShareTarget(c *gin.Context) {
 				Size:        fileHeader.Size,
 				Data:        data,
 			})
+			shareData.SizeBytes += fileHeader.Size
 		}
 	}
 
-	// Store the share data
-	s.shareDataStore.Put(shareData)
+	// Store the share data (enforces global caps)
+	if err := s.shareDataStore.Put(shareData); err != nil {
+		s.logger.Warn("failed to store share data", "error", err)
+		c.String(http.StatusServiceUnavailable, fmt.Sprintf("Share storage temporarily full: %v", err))
+		return
+	}
 
 	// Redirect to the SPA share route
 	redirectURL := fmt.Sprintf("/share/%s", shareID)
@@ -198,16 +271,30 @@ func readFileData(file multipart.File, maxSize int64) ([]byte, error) {
 }
 
 // handleShareDataAPI returns share data as JSON for the frontend.
+// Requires authentication and only returns data to the owner.
+// Deletes the data on first read (single-use).
 func (s *HTTPServer) handleShareDataAPI(c *gin.Context) {
+	// Inject user into context for authentication
+	c.Request = s.injectUserIntoContext(c)
+	
+	// Require authenticated session
+	user := authctx.ForContext(c.Request.Context())
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+	userId := user.Id
+
 	shareID := c.Param("id")
 	if shareID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing share ID"})
 		return
 	}
 
-	data, ok := s.shareDataStore.Get(shareID)
+	// Get and delete in one operation (single-use, owner-only)
+	data, ok := s.shareDataStore.GetAndDelete(shareID, userId)
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Share data not found or expired"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Share data not found, expired, or not owned by you"})
 		return
 	}
 
