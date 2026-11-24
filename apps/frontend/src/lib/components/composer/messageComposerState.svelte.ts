@@ -48,6 +48,7 @@ export type MessageComposerApi = {
   addFiles: (files: File[]) => void;
   focus: () => void;
   insertQuote: (text: QuoteInsertionContent) => void;
+  insertText: (text: string) => void;
 };
 
 export type RecentThreadRootCandidate = {
@@ -309,6 +310,10 @@ export class MessageComposerState {
     tick().then(() => this.editorApi?.insertQuote(text));
   }
 
+  insertText(text: string): void {
+    tick().then(() => this.editorApi?.insertText(text));
+  }
+
   handlePaste(event: ClipboardEvent): boolean {
     if (this.isEditing || this.inputDisabled) return false;
     const items = event.clipboardData?.items;
@@ -559,7 +564,8 @@ export class MessageComposerState {
         onReady?.({
           addFiles: (files) => void this.addFiles(files),
           focus: () => this.focus(),
-          insertQuote: (text) => this.insertQuote(text)
+          insertQuote: (text) => this.insertQuote(text),
+          insertText: (text) => this.insertText(text)
         });
       });
     });

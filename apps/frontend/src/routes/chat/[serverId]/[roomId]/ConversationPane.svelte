@@ -70,6 +70,7 @@ thread IDs can change while the pane stays mounted.
   import { clearTimelineViewport } from '$lib/state/room/timelineViewport';
   import { replaceState } from '$app/navigation';
   import { page } from '$app/state';
+  import { resolve } from '$app/paths';
 
   let {
     roomId,
@@ -392,34 +393,43 @@ thread IDs can change while the pane stays mounted.
           await api!.addFiles(files);
         }
         
-        // Build text content
-        let text = '';
+        // Build text content with deduplication
+        const lines: string[] = [];
+        
         if (shareData.title) {
-          text += `${shareData.title}\n\n`;
+          lines.push(shareData.title);
         }
+        
         if (shareData.text) {
-          text += shareData.text;
+          lines.push(shareData.text);
         }
+        
+        // Only add URL if it's not already in the text
         if (shareData.url) {
-          if (text) text += '\n\n';
-          text += shareData.url;
+          const existingText = lines.join('\n');
+          if (!existingText.includes(shareData.url)) {
+            lines.push(shareData.url);
+          }
         }
         
-        // Insert text into composer
+        // Insert text into composer as plain text (no quote markers)
+        const text = lines.join('\n\n').trim();
         if (text) {
-          quoteInsertionState.requestInsertQuote(text.trim());
+          api!.insertText(text);
         }
         
-        // Focus composer
+        // Focus composer (cursor is already at the end after insertText)
         api!.focus();
       } catch (error) {
         console.error('Error loading share data:', error);
         toast.error(m('chat.share.load_failed'));
       } finally {
         // Always clear shareId from URL
-        const url = new URL(page.url);
-        url.searchParams.delete('shareId');
-        replaceState(url.toString(), {});
+        const cleanPath = resolve('/chat/[serverId]/[roomId]', {
+          serverId: page.params.serverId,
+          roomId: page.params.roomId
+        });
+        replaceState(cleanPath, {});
       }
     }
     
