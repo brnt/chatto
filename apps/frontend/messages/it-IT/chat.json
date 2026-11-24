@@ -49,7 +49,9 @@
       "choose_a_server": "Choose a server",
       "select_room": "Select room",
       "choose_a_room": "Choose a room",
-      "no_rooms_available": "No rooms available"
+      "no_rooms_available": "No rooms available",
+      "expired_or_unavailable": "This shared content has expired or is no longer available",
+      "load_failed": "Failed to load shared content"
     },
     "server_nav": {
       "back_to_server": "Ritorno al server",

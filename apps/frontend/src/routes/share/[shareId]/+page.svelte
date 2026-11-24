@@ -5,6 +5,8 @@
 	import { onMount, untrack } from 'svelte';
 	import { client, serverRegistry } from '$lib/client';
 	import { serverUi } from '$lib/state/server/serverUi';
+	import { serverIdToSegment } from '$lib/navigation';
+	import { stashShare } from '$lib/state/pendingShare';
 	import { Button, Select } from '$lib/ui/form';
 	import { Panel, PaneContent, PaneHeader } from '$lib/ui';
 	import { LoadingDots, EmptyState } from '$lib/ui';
@@ -123,9 +125,17 @@
 	function handleShare() {
 		if (!selectedServerId || !selectedRoomId) return;
 
+		// Stash share data to avoid double-fetching (single-use shares are deleted on first read)
+		stashShare(data.shareData);
+
 		// Navigate to the room with shareId parameter
-		const url = resolve(`/chat/${selectedServerId}/${selectedRoomId}?shareId=${data.shareData.id}`);
-		goto(url);
+		// Use serverIdToSegment to convert internal server ID to URL segment
+		const serverSegment = serverIdToSegment(selectedServerId);
+		const base = resolve('/chat/[serverId]/[roomId]', { 
+			serverId: serverSegment, 
+			roomId: selectedRoomId 
+		});
+		void goto(`${base}?shareId=${encodeURIComponent(data.shareData.id)}`);
 	}
 
 	let canShare = $derived(selectedServerId !== '' && selectedRoomId !== '');

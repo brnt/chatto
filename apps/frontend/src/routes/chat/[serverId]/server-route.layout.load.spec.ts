@@ -75,10 +75,17 @@ describe('server route layout load', () => {
     await expect(routeLoad(null, true)).resolves.toMatchObject({ serverSegment: '-' });
   });
 
-  it('redirects an unresolved server before the layout component mounts', async () => {
+  it('redirects an unresolved server when signed out', async () => {
     mocks.serverId = null;
 
-    await expectLoginRedirect();
+    await expectLoginRedirect(null);
+  });
+
+  it('throws 404 for an unresolved server when signed in to prevent redirect loop', async () => {
+    mocks.serverId = null;
+
+    await expect(routeLoad({ id: 'viewer-1' })).rejects.toMatchObject({ status: 404 });
+    expect(mocks.saveReturnUrl).not.toHaveBeenCalled();
   });
 
   it('does not read the room param, so room switches do not re-run it', async () => {
