@@ -65,10 +65,10 @@
 		selectedRoomId = '';
 		roomsLoading = true;
 		roomsLoadError = false;
+		rooms = [];
 		
 		const store = serverRegistry.getStore(serverId);
 		if (!store) {
-			rooms = [];
 			roomsLoading = false;
 			roomsLoadError = true;
 			return;
@@ -76,55 +76,43 @@
 
 		// Set this server as active to ensure its realtime sync runs
 		untrack(() => client.setActiveServer(serverId));
-
-		// Get rooms from navigation store
-		const navigation = serverUi(store).navigation;
-		
-		// Check if initial room list is still loading
-		if (navigation.isInitialLoading) {
-			// Wait for the room list to load by polling the navigation store
-			// Use an effect to reactively track when loading completes
-			const checkInterval = setInterval(() => {
-				if (!navigation.isInitialLoading) {
-					clearInterval(checkInterval);
-					updateRoomsList(serverId);
-				}
-			}, 100);
-
-			// Set a timeout in case loading takes too long
-			setTimeout(() => {
-				clearInterval(checkInterval);
-				if (navigation.isInitialLoading) {
-					roomsLoadError = true;
-					roomsLoading = false;
-				}
-			}, 10000); // 10 second timeout
-		} else {
-			updateRoomsList(serverId);
-		}
 	}
 
-	function updateRoomsList(serverId: string) {
+	// React to room list loading state for the selected server
+	$effect(() => {
+		const serverId = selectedServerId;
+		if (!serverId) return;
+
 		const store = serverRegistry.getStore(serverId);
-		if (!store) {
-			rooms = [];
-			roomsLoading = false;
-			roomsLoadError = true;
-			return;
-		}
+		if (!store) return;
 
 		const navigation = serverUi(store).navigation;
+		const isLoading = navigation.isInitialLoading;
 		const roomList = navigation.rooms;
 
-		rooms = roomList.map((room: RoomsListItem) => ({
-			id: room.id,
-			name: room.name,
-			serverId
-		}));
-		
-		roomsLoading = false;
-		roomsLoadError = rooms.length === 0;
-	}
+		// Update loading state
+		roomsLoading = isLoading;
+
+		// Once loaded, update room list
+		if (!isLoading) {
+			rooms = roomList.map((room: RoomsListItem) => ({
+				id: room.id,
+				name: room.name,
+				serverId
+			}));
+			roomsLoadError = rooms.length === 0;
+		}
+
+		// Set a timeout for error state if loading takes too long
+		const timeout = setTimeout(() => {
+			if (navigation.isInitialLoading) {
+				roomsLoadError = true;
+				roomsLoading = false;
+			}
+		}, 10000);
+
+		return () => clearTimeout(timeout);
+	});
 
 	function retryLoadRooms() {
 		if (selectedServerId) {
