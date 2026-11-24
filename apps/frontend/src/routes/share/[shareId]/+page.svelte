@@ -2,8 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { onMount } from 'svelte';
-	import { serverRegistry } from '$lib/client';
+	import { onMount, untrack } from 'svelte';
+	import { client, serverRegistry } from '$lib/client';
 	import { serverUi } from '$lib/state/server/serverUi';
 	import { Button, Select } from '$lib/ui/form';
 	import { Panel, PaneContent, PaneHeader } from '$lib/ui';
@@ -17,13 +17,18 @@
 	type ServerInfo = { id: string; name: string; url: string };
 	type RoomOption = { id: string; name: string; serverId: string };
 
-	let isLoading = $state(true);
+	let isPageLoading = $state(true);
 	let servers = $state<ServerInfo[]>([]);
 	let selectedServerId = $state<string>('');
 	let selectedRoomId = $state<string>('');
 	let rooms = $state<RoomOption[]>([]);
+	let roomsLoading = $state(false);
+	let roomsLoadError = $state(false);
 
 	onMount(() => {
+		// Start the client to ensure realtime sync runs
+		untrack(() => client.start());
+
 		// Get the list of servers the user has access to
 		const serverList = serverRegistry.servers;
 		if (serverList.length === 0) {
@@ -52,20 +57,62 @@
 			loadRooms(servers[0].id);
 		}
 
-		isLoading = false;
+		isPageLoading = false;
 	});
 
 	function loadRooms(serverId: string) {
 		selectedServerId = serverId;
 		selectedRoomId = '';
+		roomsLoading = true;
+		roomsLoadError = false;
 		
 		const store = serverRegistry.getStore(serverId);
 		if (!store) {
 			rooms = [];
+			roomsLoading = false;
+			roomsLoadError = true;
 			return;
 		}
 
+		// Set this server as active to ensure its realtime sync runs
+		untrack(() => client.setActiveServer(serverId));
+
 		// Get rooms from navigation store
+		const navigation = serverUi(store).navigation;
+		
+		// Check if initial room list is still loading
+		if (navigation.isInitialLoading) {
+			// Wait for the room list to load by polling the navigation store
+			// Use an effect to reactively track when loading completes
+			const checkInterval = setInterval(() => {
+				if (!navigation.isInitialLoading) {
+					clearInterval(checkInterval);
+					updateRoomsList(serverId);
+				}
+			}, 100);
+
+			// Set a timeout in case loading takes too long
+			setTimeout(() => {
+				clearInterval(checkInterval);
+				if (navigation.isInitialLoading) {
+					roomsLoadError = true;
+					roomsLoading = false;
+				}
+			}, 10000); // 10 second timeout
+		} else {
+			updateRoomsList(serverId);
+		}
+	}
+
+	function updateRoomsList(serverId: string) {
+		const store = serverRegistry.getStore(serverId);
+		if (!store) {
+			rooms = [];
+			roomsLoading = false;
+			roomsLoadError = true;
+			return;
+		}
+
 		const navigation = serverUi(store).navigation;
 		const roomList = navigation.rooms;
 
@@ -74,6 +121,15 @@
 			name: room.name,
 			serverId
 		}));
+		
+		roomsLoading = false;
+		roomsLoadError = rooms.length === 0;
+	}
+
+	function retryLoadRooms() {
+		if (selectedServerId) {
+			loadRooms(selectedServerId);
+		}
 	}
 
 	function handleShare() {
@@ -88,7 +144,7 @@
 </script>
 
 <div class="flex h-full flex-col items-center justify-center bg-background p-4">
-	{#if isLoading}
+	{#if isPageLoading}
 		<LoadingDots />
 	{:else}
 		<div class="w-full max-w-2xl">
@@ -146,9 +202,20 @@
 
 						<!-- Room selection -->
 						{#if selectedServerId}
-							{#if rooms.length === 0}
-								<EmptyState>{m('chat.share.no_rooms_available')}</EmptyState>
-							{:else}
+							{#if roomsLoading}
+								<div class="flex items-center justify-center py-8">
+									<LoadingDots />
+								</div>
+							{:else if roomsLoadError && rooms.length === 0}
+								<div class="space-y-4">
+									<EmptyState>{m('chat.share.no_rooms_available')}</EmptyState>
+									<div class="flex justify-center">
+										<Button variant="ghost" onclick={retryLoadRooms}>
+											{m('common.retry')}
+										</Button>
+									</div>
+								</div>
+							{:else if rooms.length > 0}
 								<Select
 									id="room-select"
 									label={m('chat.share.select_room')}
