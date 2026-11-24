@@ -41,16 +41,6 @@
     "overview": {
       "title": "Présentation"
     },
-    "share": {
-      "share_to_chatto": "Share to Chatto",
-      "sharing_content": "Sharing",
-      "files": "Files",
-      "select_server": "Select server",
-      "choose_a_server": "Choose a server",
-      "select_room": "Select room",
-      "choose_a_room": "Choose a room",
-      "no_rooms_available": "No rooms available"
-    },
     "server_nav": {
       "back_to_server": "Retour au serveur",
       "server_fallback": "Serveur",
