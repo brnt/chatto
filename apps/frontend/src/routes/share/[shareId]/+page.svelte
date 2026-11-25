@@ -7,26 +7,25 @@
 	import { serverUi } from '$lib/state/server/serverUi';
 	import { serverIdToSegment } from '$lib/navigation';
 	import { stashShare } from '$lib/state/pendingShare';
-	import { sortRooms } from '$lib/share/sortRooms';
 	import { getLastUsedRoom, saveLastUsedRoom } from '$lib/share/lastUsedRoom';
 	import { pickInitialRoom } from '$lib/share/pickInitialRoom';
+	import { buildShareRoomOptions, type ShareRoomOption } from '$lib/share/buildShareRoomOptions';
+	import { directMessageLabels } from '$lib/render/directMessageLabels';
 	import { Button, Select } from '$lib/ui/form';
 	import { Panel, PaneContent, PaneHeader } from '$lib/ui';
 	import { LoadingDots, EmptyState } from '$lib/ui';
 	import { m } from '$lib/i18n/messages';
 	import type { PageData } from './$types';
-	import type { RoomsListItem } from '$lib/state/server/navigation';
 
 	let { data }: { data: PageData } = $props();
 
 	type ServerInfo = { id: string; name: string; url: string };
-	type RoomOption = { id: string; name: string; serverId: string };
 
 	let isPageLoading = $state(true);
 	let servers = $state<ServerInfo[]>([]);
 	let selectedServerId = $state<string>('');
 	let selectedRoomId = $state<string>('');
-	let rooms = $state<RoomOption[]>([]);
+	let rooms = $state<ShareRoomOption[]>([]);
 	let roomsLoading = $state(false);
 	let roomsLoadError = $state(false);
 
@@ -103,20 +102,18 @@
 			// Capture current selectedRoomId without tracking (picking a room won't re-run effect)
 			const currentSelectedRoomId = untrack(() => selectedRoomId);
 
-			// Map to room options
-			const mappedRooms = roomList.map((room: RoomsListItem) => ({
-				id: room.id,
-				name: room.name,
-				serverId
-			}));
-
-			// Sort alphabetically by name
-			const sortedRooms = sortRooms(mappedRooms);
+			// Build share room options: labels DMs, filters to postable rooms, sorts channels then DMs
+			const sortedRooms = buildShareRoomOptions(
+				roomList,
+				serverId,
+				store.projectionViewerId ?? store.viewerId,
+				directMessageLabels()
+			);
 
 			// Get last used room for this server
 			const lastUsedRoomId = getLastUsedRoom(serverId);
 
-			// If last used room exists in the list, pin it to the top
+			// If last used room exists in the filtered list, pin it to the top
 			if (lastUsedRoomId) {
 				const lastUsedIndex = sortedRooms.findIndex((r) => r.id === lastUsedRoomId);
 				if (lastUsedIndex >= 0) {
@@ -135,14 +132,14 @@
 						selectedRoomId = initialRoom;
 					}
 				} else {
-					// Last used room not in list anymore, just use sorted list
+					// Last used room not in list anymore (filtered out or removed), just use sorted list
 					rooms = sortedRooms;
 				}
 			} else {
 				rooms = sortedRooms;
 			}
 
-			roomsLoadError = roomList.length === 0;
+			roomsLoadError = sortedRooms.length === 0;
 		}
 
 		// Set a timeout for error state if loading takes too long
