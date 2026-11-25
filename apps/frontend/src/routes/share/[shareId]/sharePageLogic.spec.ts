@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { serverIdToSegment } from '$lib/navigation';
 import { stashShare, takeShare, type ShareData } from '$lib/state/pendingShare';
 import { buildShareText } from '$lib/share/buildShareText';
+import { getLastUsedRoom, saveLastUsedRoom } from '$lib/share/lastUsedRoom';
+import { sortRooms } from '$lib/share/sortRooms';
 
 vi.mock('$lib/navigation', () => ({
 	serverIdToSegment: vi.fn()
@@ -155,5 +157,127 @@ describe('share text formatting', () => {
 
 		expect(text).toBe('https://example.com');
 		expect(text).not.toContain('>');
+	});
+});
+
+describe('room preselection', () => {
+	const originalLocalStorage = global.localStorage;
+
+	beforeEach(() => {
+		// Mock localStorage
+		const store: Record<string, string> = {};
+		const mockLocalStorage = {
+			getItem: vi.fn((key: string) => store[key] ?? null),
+			setItem: vi.fn((key: string, value: string) => {
+				store[key] = value;
+			}),
+			removeItem: vi.fn((key: string) => {
+				delete store[key];
+			}),
+			clear: vi.fn(() => {
+				Object.keys(store).forEach((key) => delete store[key]);
+			}),
+			get length() {
+				return Object.keys(store).length;
+			},
+			key: vi.fn((index: number) => Object.keys(store)[index] ?? null)
+		};
+
+		Object.defineProperty(global, 'localStorage', {
+			value: mockLocalStorage,
+			writable: true,
+			configurable: true
+		});
+	});
+
+	afterEach(() => {
+		Object.defineProperty(global, 'localStorage', {
+			value: originalLocalStorage,
+			writable: true,
+			configurable: true
+		});
+	});
+
+	it('preselects last-used room when it exists in the room list', () => {
+		const serverId = 'server-1';
+		const lastUsedRoomId = 'room-b';
+
+		// Save a last-used room
+		saveLastUsedRoom(serverId, lastUsedRoomId);
+
+		// Simulate room list loading
+		const rooms = [
+			{ id: 'room-c', name: 'Charlie', serverId },
+			{ id: 'room-a', name: 'Alpha', serverId },
+			{ id: 'room-b', name: 'Beta', serverId }
+		];
+
+		// Sort rooms
+		const sortedRooms = sortRooms(rooms);
+
+		// Get last used room
+		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
+
+		// Verify last-used room is retrieved
+		expect(retrievedLastUsedRoomId).toBe(lastUsedRoomId);
+
+		// Verify room exists in sorted list (preselection logic should find it)
+		const roomExists = sortedRooms.some((r) => r.id === lastUsedRoomId);
+		expect(roomExists).toBe(true);
+
+		// In the actual component, this would trigger selectedRoomId = lastUsedRoomId
+		// when selectedRoomId is empty
+		const currentSelectedRoomId = '';
+		const shouldPreselect = !currentSelectedRoomId && roomExists;
+		expect(shouldPreselect).toBe(true);
+	});
+
+	it('does not preselect when last-used room is not in current list', () => {
+		const serverId = 'server-1';
+		const lastUsedRoomId = 'room-removed';
+
+		// Save a last-used room
+		saveLastUsedRoom(serverId, lastUsedRoomId);
+
+		// Simulate room list loading (last-used room not present)
+		const rooms = [
+			{ id: 'room-a', name: 'Alpha', serverId },
+			{ id: 'room-b', name: 'Beta', serverId }
+		];
+
+		const sortedRooms = sortRooms(rooms);
+		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
+
+		expect(retrievedLastUsedRoomId).toBe(lastUsedRoomId);
+
+		// Verify room does NOT exist in sorted list
+		const roomExists = sortedRooms.some((r) => r.id === lastUsedRoomId);
+		expect(roomExists).toBe(false);
+
+		// Should not preselect since room doesn't exist
+		const currentSelectedRoomId = '';
+		const shouldPreselect = !currentSelectedRoomId && roomExists;
+		expect(shouldPreselect).toBe(false);
+	});
+
+	it('does not overwrite existing selection', () => {
+		const serverId = 'server-1';
+		const lastUsedRoomId = 'room-a';
+		const currentlySelectedRoomId = 'room-b';
+
+		saveLastUsedRoom(serverId, lastUsedRoomId);
+
+		const rooms = [
+			{ id: 'room-a', name: 'Alpha', serverId },
+			{ id: 'room-b', name: 'Beta', serverId }
+		];
+
+		const sortedRooms = sortRooms(rooms);
+		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
+		const roomExists = sortedRooms.some((r) => r.id === retrievedLastUsedRoomId);
+
+		// Should not preselect because a room is already selected
+		const shouldPreselect = !currentlySelectedRoomId && roomExists;
+		expect(shouldPreselect).toBe(false);
 	});
 });

@@ -99,6 +99,9 @@
 
 		// Once loaded, update room list
 		if (!isLoading) {
+			// Capture current selectedRoomId to avoid reading reactive state later
+			const currentSelectedRoomId = selectedRoomId;
+
 			// Map to room options
 			const mappedRooms = roomList.map((room: RoomsListItem) => ({
 				id: room.id,
@@ -122,6 +125,11 @@
 						{ ...lastUsedRoom, name: `${m('chat.share.last_used')}: ${lastUsedRoom.name}` },
 						...sortedRooms
 					];
+
+					// Preselect the last-used room if no room is currently selected
+					if (!currentSelectedRoomId) {
+						selectedRoomId = lastUsedRoomId;
+					}
 				} else {
 					// Last used room not in list anymore, just use sorted list
 					rooms = sortedRooms;
