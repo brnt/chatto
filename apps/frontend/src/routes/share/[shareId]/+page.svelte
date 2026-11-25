@@ -9,6 +9,7 @@
 	import { stashShare } from '$lib/state/pendingShare';
 	import { sortRooms } from '$lib/share/sortRooms';
 	import { getLastUsedRoom, saveLastUsedRoom } from '$lib/share/lastUsedRoom';
+	import { pickInitialRoom } from '$lib/share/pickInitialRoom';
 	import { Button, Select } from '$lib/ui/form';
 	import { Panel, PaneContent, PaneHeader } from '$lib/ui';
 	import { LoadingDots, EmptyState } from '$lib/ui';
@@ -99,8 +100,8 @@
 
 		// Once loaded, update room list
 		if (!isLoading) {
-			// Capture current selectedRoomId to avoid reading reactive state later
-			const currentSelectedRoomId = selectedRoomId;
+			// Capture current selectedRoomId without tracking (picking a room won't re-run effect)
+			const currentSelectedRoomId = untrack(() => selectedRoomId);
 
 			// Map to room options
 			const mappedRooms = roomList.map((room: RoomsListItem) => ({
@@ -127,8 +128,11 @@
 					];
 
 					// Preselect the last-used room if no room is currently selected
-					if (!currentSelectedRoomId) {
-						selectedRoomId = lastUsedRoomId;
+					const roomIds = sortedRooms.map((r) => r.id);
+					roomIds.unshift(lastUsedRoomId); // Include the pinned room
+					const initialRoom = pickInitialRoom(currentSelectedRoomId, lastUsedRoomId, roomIds);
+					if (initialRoom) {
+						selectedRoomId = initialRoom;
 					}
 				} else {
 					// Last used room not in list anymore, just use sorted list

@@ -4,6 +4,7 @@ import { stashShare, takeShare, type ShareData } from '$lib/state/pendingShare';
 import { buildShareText } from '$lib/share/buildShareText';
 import { getLastUsedRoom, saveLastUsedRoom } from '$lib/share/lastUsedRoom';
 import { sortRooms } from '$lib/share/sortRooms';
+import { pickInitialRoom } from '$lib/share/pickInitialRoom';
 
 vi.mock('$lib/navigation', () => ({
 	serverIdToSegment: vi.fn()
@@ -221,15 +222,12 @@ describe('room preselection', () => {
 		// Verify last-used room is retrieved
 		expect(retrievedLastUsedRoomId).toBe(lastUsedRoomId);
 
-		// Verify room exists in sorted list (preselection logic should find it)
-		const roomExists = sortedRooms.some((r) => r.id === lastUsedRoomId);
-		expect(roomExists).toBe(true);
-
-		// In the actual component, this would trigger selectedRoomId = lastUsedRoomId
-		// when selectedRoomId is empty
+		// Use the actual pickInitialRoom logic
 		const currentSelectedRoomId = '';
-		const shouldPreselect = !currentSelectedRoomId && roomExists;
-		expect(shouldPreselect).toBe(true);
+		const availableRoomIds = sortedRooms.map((r) => r.id);
+		const initialRoom = pickInitialRoom(currentSelectedRoomId, retrievedLastUsedRoomId, availableRoomIds);
+		
+		expect(initialRoom).toBe(lastUsedRoomId);
 	});
 
 	it('does not preselect when last-used room is not in current list', () => {
@@ -250,14 +248,13 @@ describe('room preselection', () => {
 
 		expect(retrievedLastUsedRoomId).toBe(lastUsedRoomId);
 
-		// Verify room does NOT exist in sorted list
-		const roomExists = sortedRooms.some((r) => r.id === lastUsedRoomId);
-		expect(roomExists).toBe(false);
-
-		// Should not preselect since room doesn't exist
+		// Use the actual pickInitialRoom logic
 		const currentSelectedRoomId = '';
-		const shouldPreselect = !currentSelectedRoomId && roomExists;
-		expect(shouldPreselect).toBe(false);
+		const availableRoomIds = sortedRooms.map((r) => r.id);
+		const initialRoom = pickInitialRoom(currentSelectedRoomId, retrievedLastUsedRoomId, availableRoomIds);
+
+		// Should not preselect since room doesn't exist in list
+		expect(initialRoom).toBeNull();
 	});
 
 	it('does not overwrite existing selection', () => {
@@ -274,10 +271,12 @@ describe('room preselection', () => {
 
 		const sortedRooms = sortRooms(rooms);
 		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
-		const roomExists = sortedRooms.some((r) => r.id === retrievedLastUsedRoomId);
+
+		// Use the actual pickInitialRoom logic
+		const availableRoomIds = sortedRooms.map((r) => r.id);
+		const initialRoom = pickInitialRoom(currentlySelectedRoomId, retrievedLastUsedRoomId, availableRoomIds);
 
 		// Should not preselect because a room is already selected
-		const shouldPreselect = !currentlySelectedRoomId && roomExists;
-		expect(shouldPreselect).toBe(false);
+		expect(initialRoom).toBeNull();
 	});
 });
