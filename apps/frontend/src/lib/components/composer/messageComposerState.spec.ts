@@ -45,7 +45,11 @@ describe('MessageComposerState insertText race condition', () => {
 			draftReplies: {
 				drafts: new Map(),
 				setDraft: vi.fn(),
-				clearDraft: vi.fn()
+				clearDraft: vi.fn(),
+				select: vi.fn(),
+				clearMessage: vi.fn(),
+				clearRoom: vi.fn(),
+				clear: vi.fn()
 			},
 			getRoomId: () => 'room-1',
 			getThreadRootEventId: () => undefined,
@@ -78,28 +82,14 @@ describe('MessageComposerState insertText race condition', () => {
 				roles: [],
 				load: vi.fn(() => Promise.resolve())
 			},
-			serverInfo: {
-				status: 'ready',
-				versionInfo: null,
-				serverFeatures: {},
-				serverCapabilities: {},
-				serverUsage: null,
-				notificationSettings: null,
-				serverId: 'server-1'
-			} as ServerInfoState,
+			serverInfo: {} as unknown as ServerInfoState,
 			roomUnreadStore: {
 				setRoomUnread: vi.fn()
 			},
-			getMessageAPI: () =>
-				({
-					sendMessage: vi.fn(),
-					updateMessage: vi.fn()
-				}) as ReturnType<typeof createMessageAPI>,
-			getLinkPreviewAPI: () =>
-				({
-					requestPreview: vi.fn()
-				}) as ReturnType<typeof createLinkPreviewAPI>
-		};
+			getMessageAPI: () => ({}) as ReturnType<typeof createMessageAPI>,
+			getLinkPreviewAPI: () => ({}) as ReturnType<typeof createLinkPreviewAPI>
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} as any;
 
 		const composerState = new MessageComposerState(mockDependencies);
 

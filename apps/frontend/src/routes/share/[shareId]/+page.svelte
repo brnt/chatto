@@ -7,6 +7,8 @@
 	import { serverUi } from '$lib/state/server/serverUi';
 	import { serverIdToSegment } from '$lib/navigation';
 	import { stashShare } from '$lib/state/pendingShare';
+	import { sortRooms } from '$lib/share/sortRooms';
+	import { getLastUsedRoom, saveLastUsedRoom } from '$lib/share/lastUsedRoom';
 	import { Button, Select } from '$lib/ui/form';
 	import { Panel, PaneContent, PaneHeader } from '$lib/ui';
 	import { LoadingDots, EmptyState } from '$lib/ui';
@@ -97,11 +99,37 @@
 
 		// Once loaded, update room list
 		if (!isLoading) {
-			rooms = roomList.map((room: RoomsListItem) => ({
+			// Map to room options
+			const mappedRooms = roomList.map((room: RoomsListItem) => ({
 				id: room.id,
 				name: room.name,
 				serverId
 			}));
+
+			// Sort alphabetically by name
+			const sortedRooms = sortRooms(mappedRooms);
+
+			// Get last used room for this server
+			const lastUsedRoomId = getLastUsedRoom(serverId);
+
+			// If last used room exists in the list, pin it to the top
+			if (lastUsedRoomId) {
+				const lastUsedIndex = sortedRooms.findIndex((r) => r.id === lastUsedRoomId);
+				if (lastUsedIndex >= 0) {
+					// Remove from sorted position and add to top with "Last used" prefix
+					const [lastUsedRoom] = sortedRooms.splice(lastUsedIndex, 1);
+					rooms = [
+						{ ...lastUsedRoom, name: `${m('chat.share.last_used')}: ${lastUsedRoom.name}` },
+						...sortedRooms
+					];
+				} else {
+					// Last used room not in list anymore, just use sorted list
+					rooms = sortedRooms;
+				}
+			} else {
+				rooms = sortedRooms;
+			}
+
 			roomsLoadError = roomList.length === 0;
 		}
 
@@ -124,6 +152,9 @@
 
 	function handleShare() {
 		if (!selectedServerId || !selectedRoomId) return;
+
+		// Save last used room for this server
+		saveLastUsedRoom(selectedServerId, selectedRoomId);
 
 		// Stash share data to avoid double-fetching (single-use shares are deleted on first read)
 		stashShare(data.shareData);
