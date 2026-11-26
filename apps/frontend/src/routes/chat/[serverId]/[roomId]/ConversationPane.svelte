@@ -56,6 +56,8 @@ thread IDs can change while the pane stays mounted.
   import { appState } from '$lib/state/globals.svelte';
   import { createComposerContext, getRoomMembers, type MessagesStore } from '$lib/state/room';
   import { useServerScope } from '$lib/state/server/scope.svelte';
+  import { takeShare } from '$lib/state/pendingShare';
+  import { applyShareToComposer } from '$lib/share/applyShareToComposer';
   import { EmptyState, Hint } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import EventList from './EventList.svelte';
@@ -67,6 +69,8 @@ thread IDs can change while the pane stays mounted.
   import { isMessagePostedEvent } from '@chatto/client/timeline/timelineEvents';
   import { ReadThroughTracker, type TimelineReadPosition } from './readThroughTracker';
   import { clearTimelineViewport } from '$lib/state/room/timelineViewport';
+  import { replaceState } from '$app/navigation';
+  import { page } from '$app/state';
 
   let {
     roomId,
@@ -332,6 +336,55 @@ thread IDs can change while the pane stays mounted.
   });
 
   let composerApi = $state<MessageComposerApi | null>(null);
+
+  // Handle Web Share Target data. Plain let: only gates one-shot processing.
+  let shareDataProcessed = false;
+  $effect(() => {
+    const api = composerApi;
+    if (!api) return;
+
+    // Check for shareId parameter
+    const shareIdParam = page.url.searchParams.get('shareId');
+    if (!shareIdParam || shareDataProcessed) return;
+
+    function clearShareIdFromUrl() {
+      const url = new URL(page.url);
+      url.searchParams.delete('shareId');
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- preserving current path/search/hash, cannot use resolve() for dynamic thread/message paths
+      replaceState(url.toString(), {});
+    }
+
+    // Validate share ID format (22 chars, base64url: A-Za-z0-9_-)
+    if (!/^[A-Za-z0-9_-]{22}$/.test(shareIdParam)) {
+      shareDataProcessed = true;
+      clearShareIdFromUrl();
+      return;
+    }
+
+    // Narrow to non-null for use in async function
+    const shareId = shareIdParam;
+    shareDataProcessed = true;
+
+    async function loadShareData() {
+      try {
+        // Take share data from stash (the share page always stashes it)
+        const shareData = takeShare(shareId);
+        if (!shareData || !api) {
+          // Share was not stashed (page reload, manual URL)
+          return;
+        }
+
+        const error = await applyShareToComposer(shareData, api);
+        if (error) {
+          toast.error(m('chat.share.load_failed'));
+        }
+      } finally {
+        clearShareIdFromUrl();
+      }
+    }
+
+    void loadShareData();
+  });
 
   // Apply a quote or reply that another pane requested before this composer existed.
   $effect(() => {

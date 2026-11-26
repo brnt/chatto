@@ -110,7 +110,9 @@ func isCSRFExemptUnsafePath(path string) bool {
 		"/auth/browser/register/complete",
 		"/auth/forgot-password",
 		"/auth/reset-password",
-		"/oauth/token":
+		"/oauth/token",
+		// Web Share Target: exempt from token CSRF but validates Sec-Fetch-Site in handler
+		"/share":
 		return true
 	default:
 		return false

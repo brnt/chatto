@@ -42,6 +42,18 @@
     "overview": {
       "title": "Επισκόπηση"
     },
+    "share": {
+      "share_to_chatto": "Κοινοποίηση στο Chatto",
+      "sharing_content": "Κοινοποίηση",
+      "files": "Αρχεία",
+      "select_server": "Επιλογή διακομιστή",
+      "choose_a_server": "Επιλέξτε διακομιστή",
+      "select_room": "Επιλογή δωματίου",
+      "choose_a_room": "Επιλέξτε δωμάτιο",
+      "no_rooms_available": "Δεν υπάρχουν διαθέσιμα δωμάτια",
+      "expired_or_unavailable": "Αυτό το κοινόχρηστο περιεχόμενο έχει λήξει ή δεν είναι πλέον διαθέσιμο",
+      "load_failed": "Αποτυχία φόρτωσης κοινόχρηστου περιεχομένου"
+    },
     "server_nav": {
       "back_to_server": "Επιστροφή στον διακομιστή",
       "server_fallback": "Διακομιστής",

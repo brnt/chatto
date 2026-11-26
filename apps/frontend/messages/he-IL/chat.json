@@ -42,6 +42,18 @@
     "overview": {
       "title": "סקירה כללית"
     },
+    "share": {
+      "share_to_chatto": "שתף ב-Chatto",
+      "sharing_content": "משתף",
+      "files": "קבצים",
+      "select_server": "בחר שרת",
+      "choose_a_server": "בחר שרת",
+      "select_room": "בחר חדר",
+      "choose_a_room": "בחר חדר",
+      "no_rooms_available": "אין חדרים זמינים",
+      "expired_or_unavailable": "תוכן משותף זה פג או אינו זמין יותר",
+      "load_failed": "טעינת התוכן המשותף נכשלה"
+    },
     "server_nav": {
       "back_to_server": "חזרה לשרת",
       "server_fallback": "שרת",

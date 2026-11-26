@@ -42,6 +42,18 @@
     "overview": {
       "title": "Oversikt"
     },
+    "share": {
+      "share_to_chatto": "Del til Chatto",
+      "sharing_content": "Deler",
+      "files": "Filer",
+      "select_server": "Velg server",
+      "choose_a_server": "Velg en server",
+      "select_room": "Velg rom",
+      "choose_a_room": "Velg et rom",
+      "no_rooms_available": "Ingen tilgjengelige rom",
+      "expired_or_unavailable": "Dette delte innholdet har utløpt eller er ikke lenger tilgjengelig",
+      "load_failed": "Kunne ikke laste delt innhold"
+    },
     "server_nav": {
       "back_to_server": "Tilbake til server",
       "server_fallback": "Server",

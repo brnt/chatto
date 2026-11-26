@@ -42,6 +42,18 @@
     "overview": {
       "title": "Superrigardo"
     },
+    "share": {
+      "share_to_chatto": "Kunhavigi al Chatto",
+      "sharing_content": "Kunhavigante",
+      "files": "Dosieroj",
+      "select_server": "Elekti servilon",
+      "choose_a_server": "Elektu servilon",
+      "select_room": "Elekti ĉambron",
+      "choose_a_room": "Elektu ĉambron",
+      "no_rooms_available": "Neniuj ĉambroj disponeblaj",
+      "expired_or_unavailable": "Ĉi tiu kunhavigita enhavo eksvalidiĝis aŭ ne plu disponeblas",
+      "load_failed": "Malsukcesis ŝargi kunhavigitan enhavon"
+    },
     "server_nav": {
       "back_to_server": "Reen al Servilo",
       "server_fallback": "Servilo",

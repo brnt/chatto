@@ -42,6 +42,18 @@
     "overview": {
       "title": "Przegląd"
     },
+    "share": {
+      "share_to_chatto": "Udostępnij na Chatto",
+      "sharing_content": "Udostępnianie",
+      "files": "Pliki",
+      "select_server": "Wybierz serwer",
+      "choose_a_server": "Wybierz serwer",
+      "select_room": "Wybierz pokój",
+      "choose_a_room": "Wybierz pokój",
+      "no_rooms_available": "Brak dostępnych pokojów",
+      "expired_or_unavailable": "Ta udostępniona treść wygasła lub nie jest już dostępna",
+      "load_failed": "Nie udało się załadować udostępnionej treści"
+    },
     "server_nav": {
       "back_to_server": "Powrót do serwera",
       "server_fallback": "Serwer",

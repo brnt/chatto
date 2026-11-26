@@ -42,6 +42,18 @@
     "overview": {
       "title": "Genel Bakış"
     },
+    "share": {
+      "share_to_chatto": "Chatto'da paylaş",
+      "sharing_content": "Paylaşılıyor",
+      "files": "Dosyalar",
+      "select_server": "Sunucu seç",
+      "choose_a_server": "Bir sunucu seçin",
+      "select_room": "Oda seç",
+      "choose_a_room": "Bir oda seçin",
+      "no_rooms_available": "Kullanılabilir oda yok",
+      "expired_or_unavailable": "Bu paylaşılan içeriğin süresi doldu veya artık mevcut değil",
+      "load_failed": "Paylaşılan içerik yüklenemedi"
+    },
     "server_nav": {
       "back_to_server": "Sunucuya Geri Dön",
       "server_fallback": "Sunucu",

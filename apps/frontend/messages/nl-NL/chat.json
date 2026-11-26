@@ -42,6 +42,18 @@
     "overview": {
       "title": "Overzicht"
     },
+    "share": {
+      "share_to_chatto": "Delen naar Chatto",
+      "sharing_content": "Delen",
+      "files": "Bestanden",
+      "select_server": "Server selecteren",
+      "choose_a_server": "Kies een server",
+      "select_room": "Ruimte selecteren",
+      "choose_a_room": "Kies een ruimte",
+      "no_rooms_available": "Geen ruimtes beschikbaar",
+      "expired_or_unavailable": "Deze gedeelde inhoud is verlopen of niet meer beschikbaar",
+      "load_failed": "Kan gedeelde inhoud niet laden"
+    },
     "server_nav": {
       "back_to_server": "Terug naar de server",
       "server_fallback": "Server",
