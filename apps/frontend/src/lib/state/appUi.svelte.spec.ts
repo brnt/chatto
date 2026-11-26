@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppUiState } from './appUi.svelte';
 
-import { getRoomSidebarPanelState, setRoomSidebarPanelState } from '$lib/storage/roomSidebarPanel';
+import {
+  getDesktopRoomSidebarPanelPreference,
+  setDesktopRoomSidebarPanelPreference
+} from '$lib/storage/roomSidebarPanel';
 
 describe('AppUiState', () => {
   beforeEach(() => {
@@ -71,7 +74,7 @@ describe('AppUiState', () => {
     appUi.setActiveRoomScope('server-a', 'room-1');
     expect(appUi.desktopRoomSidebarPanel('members')).toBe('members');
     expect(appUi.mobileRoomSidebarPanel).toBeNull();
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
     appUi.setActiveRoomScope('server-a', 'room-2');
     expect(appUi.desktopRoomSidebarPanel(null)).toBeNull();
     expect(appUi.desktopRoomSidebarProfileUserId('peer')).toBe('peer');
@@ -86,19 +89,32 @@ describe('AppUiState', () => {
     restored.setActiveRoomScope('server-a', 'room-1');
     expect(restored.desktopRoomSidebarPanel('members')).toBeNull();
     restored.setActiveRoomScope('server-b', 'room-1');
-    expect(restored.desktopRoomSidebarPanel('members')).toBe('members');
-    restored.setActiveRoomScope('server-a', 'room-1');
+    expect(restored.desktopRoomSidebarPanel('members')).toBeNull();
     restored.toggleDesktopRoomSidebarPanel('members', 'members');
     expect(restored.desktopRoomSidebarPanel('members')).toBe('members');
   });
 
-  it('resets channel and DM choices in a fresh page session', () => {
+  it('retains choices across page sessions in local storage', () => {
     const appUi = new AppUiState();
     appUi.setActiveRoomScope('server-a', 'room-1');
     appUi.closeDesktopRoomSidebarPanel();
     appUi.setActiveRoomScope('server-a', 'dm-1');
     appUi.openDesktopRoomSidebarPanel('files');
-    sessionStorage.clear();
+
+    const restored = new AppUiState();
+    restored.setActiveRoomScope('server-a', 'room-1');
+    expect(restored.desktopRoomSidebarPanel('members')).toBe('files');
+    restored.setActiveRoomScope('server-a', 'dm-1');
+    expect(restored.desktopRoomSidebarPanel(null)).toBe('files');
+    expect(restored.desktopRoomSidebarProfileUserId('peer')).toBeNull();
+  });
+
+  it('falls back to room defaults when local storage is cleared', () => {
+    const appUi = new AppUiState();
+    appUi.setActiveRoomScope('server-a', 'room-1');
+    appUi.closeDesktopRoomSidebarPanel();
+    appUi.openDesktopRoomSidebarPanel('files');
+    localStorage.clear();
     const fresh = new AppUiState();
     fresh.setActiveRoomScope('server-a', 'room-1');
     expect(fresh.desktopRoomSidebarPanel('members')).toBe('members');
@@ -107,7 +123,7 @@ describe('AppUiState', () => {
     expect(fresh.desktopRoomSidebarProfileUserId('peer')).toBe('peer');
   });
 
-  it('retains choices during navigation when session storage is unavailable', () => {
+  it('retains choices during navigation when local storage is unavailable', () => {
     const read = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('Denied');
     });
@@ -127,28 +143,27 @@ describe('AppUiState', () => {
     }
   });
 
-  it('remembers explicit desktop sidebar state per room for the session', () => {
+  it('remembers explicit desktop sidebar state globally across rooms', () => {
     const appUi = new AppUiState();
 
     appUi.setActiveRoomScope('server-a', 'room-1');
-
     appUi.openDesktopRoomSidebarPanel('files');
-
     expect(appUi.activeDesktopRoomSidebarPanel).toBe('files');
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBe('files');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
 
     appUi.setActiveRoomScope('server-a', 'room-2');
+    expect(appUi.activeDesktopRoomSidebarPanel).toBe('files');
+
     appUi.openDesktopRoomSidebarPanel('members');
     expect(appUi.activeDesktopRoomSidebarPanel).toBe('members');
 
     appUi.setActiveRoomScope('server-a', 'room-1');
-    expect(appUi.activeDesktopRoomSidebarPanel).toBe('files');
+    expect(appUi.activeDesktopRoomSidebarPanel).toBe('members');
 
     appUi.closeDesktopRoomSidebarPanel();
     appUi.setActiveRoomScope('server-a', 'room-2');
-    appUi.setActiveRoomScope('server-a', 'room-1');
     expect(appUi.activeDesktopRoomSidebarPanel).toBe(null);
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeNull();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeNull();
   });
 
   it('scopes mobile room sidebar state to the active room', () => {
@@ -199,7 +214,7 @@ describe('AppUiState', () => {
     expect(appUi.activeRoomScope).toEqual({ serverId: 'server-a', roomId: 'room-1' });
     expect(appUi.activeRoomSidebarProfileUserId).toBe('user-1');
     expect(appUi.isMemberProfileOpen).toBe(true);
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBe('members');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('members');
 
     appUi.openMemberProfile('user-2', 'desktop');
     expect(appUi.activeRoomSidebarProfileUserId).toBe('user-2');
@@ -221,7 +236,7 @@ describe('AppUiState', () => {
     appUi.backToRoomMembers('mobile');
     expect(appUi.mobileRoomSidebarPanel).toBe('members');
     expect(appUi.activeRoomSidebarProfileUserId).toBeNull();
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBe('files');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
 
     appUi.openMemberProfile('user-1', 'desktop');
     appUi.backToRoomMembers('mobile');
@@ -268,7 +283,7 @@ describe('AppUiState', () => {
     appUi.setActiveRoomScope('server-a', 'room-2');
 
     expect(appUi.activeDesktopRoomSidebarPanel).toBe('call');
-    expect(getRoomSidebarPanelState('server-a', 'room-2')).toBe('call');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('call');
   });
 
   it('applies a mobile sidebar request once', () => {
@@ -279,7 +294,7 @@ describe('AppUiState', () => {
     appUi.setActiveRoomScope('server-a', 'room-2');
 
     expect(appUi.mobileRoomSidebarPanel).toBe('files');
-    expect(getRoomSidebarPanelState('server-a', 'room-2')).toBeUndefined();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
 
     appUi.closeMobileRoomSidebarPanel();
     appUi.setActiveRoomScope('server-a', 'room-1');
@@ -330,40 +345,40 @@ describe('AppUiState', () => {
     expect(appUi.desktopRoomSidebarProfileUserId(null)).toBeNull();
     expect(appUi.desktopRoomSidebarProfileUserId('peer')).toBe('peer');
     expect(appUi.activeRoomSidebarProfileUserId).toBeNull();
-    expect(getRoomSidebarPanelState('server-a', 'dm-1')).toBeUndefined();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
     appUi.closeRoomSidebarProfile('desktop');
     expect(appUi.desktopRoomSidebarProfileUserId('peer')).toBeNull();
     appUi.setActiveRoomScope('server-a', 'dm-2');
-    expect(appUi.desktopRoomSidebarProfileUserId('other-peer')).toBe('other-peer');
+    expect(appUi.desktopRoomSidebarProfileUserId('other-peer')).toBeNull();
   });
 
-  it('restores profiles and their previous panel without opening a mobile profile', () => {
+  it('restores the underlying panel after a profile without reopening the profile', () => {
     const first = new AppUiState();
     first.setActiveRoomScope('server-a', 'dm-1');
     first.openDesktopRoomSidebarPanel('files');
     first.openRoomSidebarProfile('peer', 'desktop');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
+
     const restored = new AppUiState();
     restored.setActiveRoomScope('server-a', 'dm-1');
-    expect(restored.desktopRoomSidebarProfileUserId('peer')).toBe('peer');
+    expect(restored.desktopRoomSidebarProfileUserId('peer')).toBeNull();
     expect(restored.activeRoomSidebarProfileUserId).toBeNull();
     expect(restored.mobileRoomSidebarPanel).toBeNull();
-    restored.closeRoomSidebarProfile('desktop');
     expect(restored.activeDesktopRoomSidebarPanel).toBe('files');
-    expect(restored.desktopRoomSidebarProfileUserId('peer')).toBeNull();
-    expect(getRoomSidebarPanelState('server-a', 'dm-1')).toBe('files');
   });
 
-  it('selects the underlying panel when toggled from a restored profile', () => {
-    setRoomSidebarPanelState('server-a', 'dm-1', { previousPanel: 'files' });
+  it('selects the underlying panel when toggled from an open profile', () => {
+    setDesktopRoomSidebarPanelPreference('files');
     const appUi = new AppUiState();
     appUi.setActiveRoomScope('server-a', 'dm-1');
+    appUi.openRoomSidebarProfile('peer', 'desktop');
     appUi.toggleDesktopRoomSidebarPanel('files');
     expect(appUi.activeDesktopRoomSidebarPanel).toBe('files');
     expect(appUi.desktopRoomSidebarProfileUserId('peer')).toBeNull();
   });
 
   it('applies explicit navigation requests after restoring the saved preference', () => {
-    setRoomSidebarPanelState('server-a', 'dm-1', { previousPanel: 'files' });
+    setDesktopRoomSidebarPanelPreference('files');
     const appUi = new AppUiState();
     appUi.requestRoomSidebarPanel('server-a', 'dm-1', 'call', 'desktop');
     appUi.setActiveRoomScope('server-a', 'dm-1');
@@ -379,7 +394,7 @@ describe('AppUiState', () => {
     appUi.toggleMobileRoomSidebarPanel('files');
     expect(appUi.activeRoomSidebarProfileUserId).toBeNull();
     expect(appUi.mobileRoomSidebarPanel).toBe('files');
-    expect(getRoomSidebarPanelState('server-a', 'dm-1')).toBeUndefined();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
   });
 
   it('keeps desktop preferences intact during mobile actions', () => {
@@ -390,7 +405,7 @@ describe('AppUiState', () => {
     appUi.closeRoomSidebarProfile('mobile');
     appUi.requestRoomSidebarPanel('server-a', 'dm-1', 'call', 'mobile');
     appUi.closeMobileRoomSidebarPanel();
-    expect(getRoomSidebarPanelState('server-a', 'dm-1')).toBe('files');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
     expect(appUi.activeDesktopRoomSidebarPanel).toBe('files');
   });
 

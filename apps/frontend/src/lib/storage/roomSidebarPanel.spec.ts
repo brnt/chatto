@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { serverStorageKey } from '@chatto/client/storage/serverStorage';
 import {
-  getRoomSidebarPanelState,
-  roomSidebarPanelStorageSuffix,
-  setRoomSidebarPanelState
+  DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY,
+  getDesktopRoomSidebarPanelPreference,
+  setDesktopRoomSidebarPanelPreference
 } from './roomSidebarPanel';
 
 const storage = new Map<string, string>();
-const sessionStorageMock: Storage = {
+const localStorageMock: Storage = {
   getItem: (key) => storage.get(key) ?? null,
   setItem: (key, value) => storage.set(key, value),
   removeItem: (key) => storage.delete(key),
@@ -17,62 +16,54 @@ const sessionStorageMock: Storage = {
   },
   key: (index) => [...storage.keys()][index] ?? null
 };
+
 beforeEach(() => {
   storage.clear();
-  vi.stubGlobal('sessionStorage', sessionStorageMock);
+  vi.stubGlobal('localStorage', localStorageMock);
 });
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('room sidebar panel storage', () => {
+describe('desktop room sidebar panel storage', () => {
   it('distinguishes no choice from closed', () => {
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
   });
 
-  it('persists the selected panel per server and room', () => {
-    setRoomSidebarPanelState('server-a', 'room-1', 'files');
-    setRoomSidebarPanelState('server-a', 'room-2', 'search');
-    setRoomSidebarPanelState('server-b', 'room-1', 'call');
+  it('persists the selected panel globally', () => {
+    setDesktopRoomSidebarPanelPreference('files');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe('files');
 
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBe('files');
-    expect(getRoomSidebarPanelState('server-a', 'room-2')).toBe('search');
-    expect(getRoomSidebarPanelState('server-b', 'room-1')).toBe('call');
+    setDesktopRoomSidebarPanelPreference('search');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('search');
   });
 
-  it('retains closed state in the page session', () => {
-    setRoomSidebarPanelState('server-a', 'room-1', 'files');
-    setRoomSidebarPanelState('server-a', 'room-1', null);
+  it('retains closed state across reloads', () => {
+    setDesktopRoomSidebarPanelPreference('files');
+    setDesktopRoomSidebarPanelPreference(null);
 
-    const key = serverStorageKey('server-a', roomSidebarPanelStorageSuffix('room-1'));
-
-    expect(sessionStorage.getItem(key)).toBe('closed');
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeNull();
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe('closed');
+    expect(getDesktopRoomSidebarPanelPreference()).toBeNull();
   });
 
-  it('ignores legacy local storage choices', () => {
-    const key = serverStorageKey('server-a', roomSidebarPanelStorageSuffix('room-1'));
+  it('stores only the underlying panel for a profile preference', () => {
+    setDesktopRoomSidebarPanelPreference({ previousPanel: 'files' });
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe('files');
+    expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
 
-    const getItem = vi.fn(() => 'closed');
-    vi.stubGlobal('localStorage', { getItem });
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
-    expect(getItem).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem(key)).toBeNull();
+    setDesktopRoomSidebarPanelPreference({ previousPanel: null });
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe('closed');
+    expect(getDesktopRoomSidebarPanelPreference()).toBeNull();
   });
 
-  it('returns to no choice in a fresh page session', () => {
-    setRoomSidebarPanelState('server-a', 'room-1', null);
-    sessionStorage.clear();
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
-  });
-
-  it('handles missing session storage', () => {
-    vi.stubGlobal('sessionStorage', undefined);
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
-    expect(() => setRoomSidebarPanelState('server-a', 'room-1', 'files')).not.toThrow();
+  it('handles missing local storage', () => {
+    vi.stubGlobal('localStorage', undefined);
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
+    expect(() => setDesktopRoomSidebarPanelPreference('files')).not.toThrow();
   });
 
   it('handles storage access and quota failures', () => {
-    vi.stubGlobal('sessionStorage', {
+    vi.stubGlobal('localStorage', {
       getItem: () => {
         throw new Error('Storage access denied');
       },
@@ -80,35 +71,15 @@ describe('room sidebar panel storage', () => {
         throw new Error('Storage full');
       }
     });
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
-    expect(() => setRoomSidebarPanelState('server-a', 'room-1', 'files')).not.toThrow();
+    expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
+    expect(() => setDesktopRoomSidebarPanelPreference('files')).not.toThrow();
   });
 
-  it('treats unknown stored values as no choice', () => {
-    const key = serverStorageKey('server-a', roomSidebarPanelStorageSuffix('room-1'));
-
-    sessionStorage.setItem(key, 'calendar');
-    expect(getRoomSidebarPanelState('server-a', 'room-1')).toBeUndefined();
-  });
-});
-
-describe('profile preferences', () => {
-  it('round-trips profiles with and without a previous panel', () => {
-    for (const previousPanel of ['files', null] as const) {
-      const preference = { previousPanel } as const;
-      setRoomSidebarPanelState('server-a', 'dm-1', preference);
-      expect(getRoomSidebarPanelState('server-a', 'dm-1')).toEqual(preference);
-    }
-  });
-
-  it.each(['{', '{}', 'null', 'profile:', 'profile:unknown', 'profile:files:extra'])(
-    'ignores malformed profile state: %s',
+  it.each(['calendar', 'profile:files', 'profile:', 'profile:unknown', '{', 'null'])(
+    'treats unknown or legacy stored values as no choice: %s',
     (raw) => {
-      sessionStorage.setItem(
-        serverStorageKey('server-a', roomSidebarPanelStorageSuffix('dm-1')),
-        raw
-      );
-      expect(getRoomSidebarPanelState('server-a', 'dm-1')).toBeUndefined();
+      localStorage.setItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY, raw);
+      expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
     }
   );
 });

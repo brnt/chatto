@@ -14,7 +14,7 @@ import { UserStore } from '@chatto/client/server/users';
 import { setPresenceStatus } from '$lib/state/server/presenceTracking';
 import { deleteCustomStatus, setCustomStatus } from '@chatto/client/api/userStatus';
 import type { AppUiState } from '$lib/state/appUi.svelte';
-import { getRoomSidebarPanelState } from '$lib/storage/roomSidebarPanel';
+import { getDesktopRoomSidebarPanelPreference } from '$lib/storage/roomSidebarPanel';
 import { createTestServerScope, type TestServerScope } from '$lib/test-utils/serverScope.svelte';
 import CurrentUserBarTestHarness from './CurrentUserBarTestHarness.svelte';
 
@@ -952,7 +952,7 @@ describe('CurrentUserBar', () => {
     await expect.poll(() => q(container, '[data-testid="app-header-call-card"]')).toBeTruthy();
 
     expect(navigation.goto).toHaveBeenCalledWith('/chat/-/room-1');
-    expect(getRoomSidebarPanelState('origin', 'room-1')).toBe(
+    expect(getDesktopRoomSidebarPanelPreference()).toBe(
       window.matchMedia('(min-width: 1024px)').matches ? 'call' : undefined
     );
     expect(voiceCallState.toggleMute).toHaveBeenCalledOnce();
