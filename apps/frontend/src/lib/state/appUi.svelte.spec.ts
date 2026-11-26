@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppUiState } from './appUi.svelte';
 
 import {
+  DESKTOP_ROOM_SIDEBAR_CLOSED,
+  DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY,
   getDesktopRoomSidebarPanelPreference,
   setDesktopRoomSidebarPanelPreference
 } from '$lib/storage/roomSidebarPanel';
@@ -163,7 +165,7 @@ describe('AppUiState', () => {
     appUi.closeDesktopRoomSidebarPanel();
     appUi.setActiveRoomScope('server-a', 'room-2');
     expect(appUi.activeDesktopRoomSidebarPanel).toBe(null);
-    expect(getDesktopRoomSidebarPanelPreference()).toBeNull();
+    expect(getDesktopRoomSidebarPanelPreference()).toBe(DESKTOP_ROOM_SIDEBAR_CLOSED);
   });
 
   it('scopes mobile room sidebar state to the active room', () => {
@@ -337,6 +339,40 @@ describe('AppUiState', () => {
     closed.setActiveRoomScope('server-a', 'room-1');
     expect(closed.desktopRoomSidebarProfileUserId('peer')).toBeNull();
     expect(closed.activeDesktopRoomSidebarPanel).toBeNull();
+  });
+
+  it('cold start: honors stored closed on first desktop room mount', () => {
+    localStorage.setItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY, DESKTOP_ROOM_SIDEBAR_CLOSED);
+    expect(getDesktopRoomSidebarPanelPreference()).toBe(DESKTOP_ROOM_SIDEBAR_CLOSED);
+    expect(Boolean(getDesktopRoomSidebarPanelPreference())).toBe(true);
+
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const appUi = new AppUiState();
+    appUi.setActiveRoomScope('server-a', 'room-1');
+    // Channel default must not replace an explicit closed choice.
+    expect(appUi.desktopRoomSidebarPanel('members')).toBeNull();
+    expect(appUi.activeDesktopRoomSidebarPanel).toBeNull();
+    appUi.setActiveRoomScope('server-a', 'room-2');
+    expect(appUi.desktopRoomSidebarPanel('members')).toBeNull();
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe(
+      DESKTOP_ROOM_SIDEBAR_CLOSED
+    );
+    expect(
+      setItem.mock.calls.filter(([key]) => key === DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)
+    ).toEqual([]);
+  });
+
+  it('persists closed even after the active room scope is cleared', () => {
+    const appUi = new AppUiState();
+    appUi.setActiveRoomScope('server-a', 'room-1');
+    appUi.openDesktopRoomSidebarPanel('files');
+    appUi.setActiveServer('server-a');
+    appUi.closeDesktopRoomSidebarPanel();
+    expect(getDesktopRoomSidebarPanelPreference()).toBe(DESKTOP_ROOM_SIDEBAR_CLOSED);
+
+    const restored = new AppUiState();
+    restored.setActiveRoomScope('server-a', 'room-1');
+    expect(restored.desktopRoomSidebarPanel('members')).toBeNull();
   });
 
   it('derives a default profile only until an explicit choice is made', () => {

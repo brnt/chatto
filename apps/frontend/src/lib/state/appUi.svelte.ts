@@ -1,10 +1,13 @@
 import { createContext } from 'svelte';
 import {
+  DESKTOP_ROOM_SIDEBAR_CLOSED,
   getDesktopRoomSidebarPanelPreference,
+  roomSidebarPanelFromDurable,
   setDesktopRoomSidebarPanelPreference,
   type RoomSidebarPreference,
   type RoomSidebarPanel,
-  type RoomSidebarPanelState
+  type RoomSidebarPanelState,
+  type RoomSidebarProfilePreference
 } from '$lib/storage/roomSidebarPanel';
 
 export type AppRoomScope = {
@@ -47,7 +50,13 @@ type RoomSidebarProfileRequest = RoomSidebarProfileState & {
  * sidebar and call-wide mode can coordinate without custom event bridges.
  */
 export class AppUiState {
-  constructor(private readonly requestMembers?: (scope: AppRoomScope) => void) {}
+  constructor(private readonly requestMembers?: (scope: AppRoomScope) => void) {
+    // Load before the first room render so a stored closed choice is not
+    // mistaken for "no choice" while layout effects catch up.
+    if (typeof localStorage !== 'undefined') {
+      this.#ensureDesktopRoomSidebarPreferenceLoaded();
+    }
+  }
 
   /** Request the visible directory from navigation, panel actions, and viewport events. */
   loadVisibleRoomMembers(): void {
@@ -85,7 +94,10 @@ export class AppUiState {
     this.#activeServerId = serverId;
     this.#activeRoomId = null;
     this.#roomSidebarProfile = null;
-    if (previousScope !== null) this.disableRoomCallWide();
+    if (previousScope !== null) {
+      this.#flattenDesktopRoomSidebarProfilePreference();
+      this.disableRoomCallWide();
+    }
   }
 
   setActiveRoomScope(serverId: string, roomId: string): void {
@@ -96,6 +108,7 @@ export class AppUiState {
     const nextScope = this.#activeRoomScopeKey;
     if (previousScope !== null && previousScope !== nextScope) {
       this.#roomSidebarProfile = null;
+      this.#flattenDesktopRoomSidebarProfilePreference();
       this.disableRoomCallWide();
     }
 
@@ -111,11 +124,11 @@ export class AppUiState {
   /** Resolve an absent choice without saving the room-specific desktop default. */
   desktopRoomSidebarPanel(defaultPanel: RoomSidebarPanelState): RoomSidebarPanelState {
     if (!this.activeRoomScope) return null;
+    this.#ensureDesktopRoomSidebarPreferenceLoaded();
     const preference = this.#desktopRoomSidebarPreference;
     if (preference === undefined) return defaultPanel;
-    return typeof preference === 'object' && preference !== null
-      ? preference.previousPanel
-      : preference;
+    if (typeof preference === 'object' && preference !== null) return preference.previousPanel;
+    return roomSidebarPanelFromDurable(preference);
   }
 
   /**
@@ -124,12 +137,11 @@ export class AppUiState {
    * This derived presentation must not create a mobile profile or write storage.
    */
   desktopRoomSidebarProfileUserId(defaultUserId: string | null): string | null {
+    this.#ensureDesktopRoomSidebarPreferenceLoaded();
     const preference = this.#desktopRoomSidebarPreference;
     return (
       this.activeRoomSidebarProfileUserId ??
-      (this.#activeRoomId && preference !== null && typeof preference !== 'string'
-        ? defaultUserId
-        : null)
+      (this.#activeRoomId && preference === undefined ? defaultUserId : null)
     );
   }
 
@@ -179,11 +191,9 @@ export class AppUiState {
     panel: RoomSidebarPanel,
     defaultPanel: RoomSidebarPanelState = null
   ): void {
-    const preference = this.#desktopRoomSidebarPreference;
-    if (
-      !this.activeRoomSidebarProfileUserId &&
-      (preference === undefined ? defaultPanel : preference) === panel
-    ) {
+    this.#ensureDesktopRoomSidebarPreferenceLoaded();
+    const current = this.desktopRoomSidebarPanel(defaultPanel);
+    if (!this.activeRoomSidebarProfileUserId && current === panel) {
       this.closeDesktopRoomSidebarPanel();
       return;
     }
@@ -355,12 +365,22 @@ export class AppUiState {
     this.#desktopRoomSidebarPreference = getDesktopRoomSidebarPanelPreference();
   }
 
-  #setDesktopRoomSidebarPanel(panel: Exclude<RoomSidebarPreference, undefined>): void {
-    if (!this.activeRoomScope) return;
+  /** Drop a transient profile wrapper after its room scope ends. */
+  #flattenDesktopRoomSidebarProfilePreference(): void {
+    const preference = this.#desktopRoomSidebarPreference;
+    if (typeof preference !== 'object' || preference === null) return;
+    this.#desktopRoomSidebarPreference =
+      preference.previousPanel === null ? DESKTOP_ROOM_SIDEBAR_CLOSED : preference.previousPanel;
+  }
 
+  #setDesktopRoomSidebarPanel(panel: RoomSidebarPanel | null | RoomSidebarProfilePreference): void {
     this.#ensureDesktopRoomSidebarPreferenceLoaded();
-    this.#desktopRoomSidebarPreference = panel;
-    setDesktopRoomSidebarPanelPreference(panel);
+    const preference: Exclude<RoomSidebarPreference, undefined> =
+      panel === null ? DESKTOP_ROOM_SIDEBAR_CLOSED : panel;
+    this.#desktopRoomSidebarPreference = preference;
+    // Persist even when the active room scope is briefly cleared so an explicit
+    // closed choice survives PWA restarts.
+    setDesktopRoomSidebarPanelPreference(preference);
   }
 
   #applyRoomSidebarPanelRequest(): void {

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DESKTOP_ROOM_SIDEBAR_CLOSED,
   DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY,
   getDesktopRoomSidebarPanelPreference,
+  roomSidebarPanelFromDurable,
   setDesktopRoomSidebarPanelPreference
 } from './roomSidebarPanel';
 
@@ -25,8 +27,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('desktop room sidebar panel storage', () => {
-  it('distinguishes no choice from closed', () => {
+  it('distinguishes no choice from the closed sentinel', () => {
     expect(getDesktopRoomSidebarPanelPreference()).toBeUndefined();
+    expect(Boolean(getDesktopRoomSidebarPanelPreference())).toBe(false);
   });
 
   it('persists the selected panel globally', () => {
@@ -38,12 +41,17 @@ describe('desktop room sidebar panel storage', () => {
     expect(getDesktopRoomSidebarPanelPreference()).toBe('search');
   });
 
-  it('retains closed state across reloads', () => {
+  it('retains closed state across reloads as an explicit sentinel', () => {
     setDesktopRoomSidebarPanelPreference('files');
     setDesktopRoomSidebarPanelPreference(null);
 
-    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe('closed');
-    expect(getDesktopRoomSidebarPanelPreference()).toBeNull();
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe(
+      DESKTOP_ROOM_SIDEBAR_CLOSED
+    );
+    expect(getDesktopRoomSidebarPanelPreference()).toBe(DESKTOP_ROOM_SIDEBAR_CLOSED);
+    // Closed must stay truthy so callers cannot treat it like a missing key.
+    expect(Boolean(getDesktopRoomSidebarPanelPreference())).toBe(true);
+    expect(roomSidebarPanelFromDurable(DESKTOP_ROOM_SIDEBAR_CLOSED)).toBeNull();
   });
 
   it('stores only the underlying panel for a profile preference', () => {
@@ -52,8 +60,10 @@ describe('desktop room sidebar panel storage', () => {
     expect(getDesktopRoomSidebarPanelPreference()).toBe('files');
 
     setDesktopRoomSidebarPanelPreference({ previousPanel: null });
-    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe('closed');
-    expect(getDesktopRoomSidebarPanelPreference()).toBeNull();
+    expect(localStorage.getItem(DESKTOP_ROOM_SIDEBAR_PANEL_STORAGE_KEY)).toBe(
+      DESKTOP_ROOM_SIDEBAR_CLOSED
+    );
+    expect(getDesktopRoomSidebarPanelPreference()).toBe(DESKTOP_ROOM_SIDEBAR_CLOSED);
   });
 
   it('handles missing local storage', () => {
