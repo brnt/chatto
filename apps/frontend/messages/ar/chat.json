@@ -42,6 +42,18 @@
     "overview": {
       "title": "نظرة عامة"
     },
+    "share": {
+      "share_to_chatto": "مشاركة إلى Chatto",
+      "sharing_content": "جارٍ المشاركة",
+      "files": "ملفات",
+      "select_server": "اختر الخادم",
+      "choose_a_server": "اختر خادمًا",
+      "select_room": "اختر الغرفة",
+      "choose_a_room": "اختر غرفة",
+      "no_rooms_available": "لا توجد غرف متاحة",
+      "expired_or_unavailable": "انتهت صلاحية هذا المحتوى المشترك أو لم يعد متاحًا",
+      "load_failed": "فشل تحميل المحتوى المشترك"
+    },
     "server_nav": {
       "back_to_server": "العودة إلى الخادم",
       "server_fallback": "الخادم",

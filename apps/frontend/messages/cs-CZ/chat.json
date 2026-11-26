@@ -42,6 +42,18 @@
     "overview": {
       "title": "Přehled"
     },
+    "share": {
+      "share_to_chatto": "Sdílet do Chatto",
+      "sharing_content": "Sdílení",
+      "files": "Soubory",
+      "select_server": "Vybrat server",
+      "choose_a_server": "Vyberte server",
+      "select_room": "Vybrat místnost",
+      "choose_a_room": "Vyberte místnost",
+      "no_rooms_available": "Žádné místnosti k dispozici",
+      "expired_or_unavailable": "Tento sdílený obsah vypršel nebo již není k dispozici",
+      "load_failed": "Nepodařilo se načíst sdílený obsah"
+    },
     "server_nav": {
       "back_to_server": "Zpět na Server",
       "server_fallback": "Server",

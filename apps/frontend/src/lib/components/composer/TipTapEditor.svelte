@@ -415,7 +415,21 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
 
       insertText: (text: string) => {
         if (e.isDestroyed || !text) return;
-        e.chain().focus().insertContent(text).run();
+        // Keep single-line text inline (emoji, timestamps). Code blocks reject
+        // hardBreak nodes, so multi-line inserts there must stay plain text.
+        if (!text.includes('\n') || e.state.selection.$from.parent.type.spec.code) {
+          e.chain().focus().insertContent(text).run();
+          tick().then(syncControls);
+          return;
+        }
+        // Build inline content for multi-line text with hard breaks
+        const inline = text
+          .split('\n')
+          .flatMap((line, i, all) => [
+            ...(line ? [{ type: 'text', text: line }] : []),
+            ...(i < all.length - 1 ? [{ type: 'hardBreak' }] : [])
+          ]);
+        e.chain().focus().insertContent(inline).run();
         tick().then(syncControls);
       },
 

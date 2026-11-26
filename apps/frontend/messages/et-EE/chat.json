@@ -42,6 +42,18 @@
     "overview": {
       "title": "Ülevaade"
     },
+    "share": {
+      "share_to_chatto": "Jaga Chattole",
+      "sharing_content": "Jagamine",
+      "files": "Failid",
+      "select_server": "Vali server",
+      "choose_a_server": "Valige server",
+      "select_room": "Vali ruum",
+      "choose_a_room": "Valige ruum",
+      "no_rooms_available": "Ruume pole saadaval",
+      "expired_or_unavailable": "See jagatud sisu on aegunud või enam kättesaadav",
+      "load_failed": "Jagatud sisu laadimine ebaõnnestus"
+    },
     "server_nav": {
       "back_to_server": "Tagasi serverisse",
       "server_fallback": "Server",

@@ -296,6 +296,40 @@ func TestDynamicPWAManifest(t *testing.T) {
 		assert.Equal(t, "/assets/server/logo/t/192", shortcutIcons[0].(map[string]any)["src"])
 		assert.Equal(t, "image/png", shortcutIcons[0].(map[string]any)["type"])
 	})
+
+	t.Run("preserves share_target field from static manifest", func(t *testing.T) {
+		staticWithShareTarget := []byte(`{
+  "name": "Chatto",
+  "short_name": "Chatto",
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [{"name": "files", "accept": ["image/*", "video/*"]}]
+    }
+  }
+}`)
+
+		got, err := dynamicPWAManifest(staticWithShareTarget, "Engineering", nil)
+		if err != nil {
+			t.Fatalf("dynamicPWAManifest: %v", err)
+		}
+
+		var manifest map[string]any
+		if err := json.Unmarshal(got, &manifest); err != nil {
+			t.Fatalf("unmarshal manifest: %v", err)
+		}
+
+		// Verify share_target is preserved
+		shareTarget, ok := manifest["share_target"].(map[string]any)
+		assert.True(t, ok, "share_target should be preserved")
+		assert.Equal(t, "/share", shareTarget["action"])
+		assert.Equal(t, "POST", shareTarget["method"])
+	})
 }
 
 func TestSameOriginServerAssetURL(t *testing.T) {

@@ -42,6 +42,18 @@
     "overview": {
       "title": "Panoramica"
     },
+    "share": {
+      "share_to_chatto": "Condividi su Chatto",
+      "sharing_content": "Condivisione",
+      "files": "File",
+      "select_server": "Seleziona server",
+      "choose_a_server": "Scegli un server",
+      "select_room": "Seleziona stanza",
+      "choose_a_room": "Scegli una stanza",
+      "no_rooms_available": "Nessuna stanza disponibile",
+      "expired_or_unavailable": "Questo contenuto condiviso è scaduto o non è più disponibile",
+      "load_failed": "Impossibile caricare il contenuto condiviso"
+    },
     "server_nav": {
       "back_to_server": "Ritorno al server",
       "server_fallback": "Server",

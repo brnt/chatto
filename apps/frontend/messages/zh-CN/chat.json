@@ -42,6 +42,18 @@
     "overview": {
       "title": "概览"
     },
+    "share": {
+      "share_to_chatto": "分享到 Chatto",
+      "sharing_content": "分享中",
+      "files": "文件",
+      "select_server": "选择服务器",
+      "choose_a_server": "选择一个服务器",
+      "select_room": "选择房间",
+      "choose_a_room": "选择一个房间",
+      "no_rooms_available": "没有可用的房间",
+      "expired_or_unavailable": "此共享内容已过期或不再可用",
+      "load_failed": "加载共享内容失败"
+    },
     "server_nav": {
       "back_to_server": "返回服务器",
       "server_fallback": "服务器",

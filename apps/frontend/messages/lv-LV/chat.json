@@ -42,6 +42,18 @@
     "overview": {
       "title": "Pārskats"
     },
+    "share": {
+      "share_to_chatto": "Dalīties Chatto",
+      "sharing_content": "Dalās",
+      "files": "Faili",
+      "select_server": "Izvēlēties serveri",
+      "choose_a_server": "Izvēlieties serveri",
+      "select_room": "Izvēlēties telpu",
+      "choose_a_room": "Izvēlieties telpu",
+      "no_rooms_available": "Nav pieejamu telpu",
+      "expired_or_unavailable": "Šis kopīgotais saturs ir beidzies vai vairs nav pieejams",
+      "load_failed": "Neizdevās ielādēt kopīgoto saturu"
+    },
     "server_nav": {
       "back_to_server": "Atpakaļ uz serveri",
       "server_fallback": "Serveris",

@@ -42,6 +42,18 @@
     "overview": {
       "title": "Visão geral"
     },
+    "share": {
+      "share_to_chatto": "Compartilhar no Chatto",
+      "sharing_content": "Compartilhando",
+      "files": "Arquivos",
+      "select_server": "Selecionar servidor",
+      "choose_a_server": "Escolha um servidor",
+      "select_room": "Selecionar sala",
+      "choose_a_room": "Escolha uma sala",
+      "no_rooms_available": "Nenhuma sala disponível",
+      "expired_or_unavailable": "Este conteúdo compartilhado expirou ou não está mais disponível",
+      "load_failed": "Falha ao carregar conteúdo compartilhado"
+    },
     "server_nav": {
       "back_to_server": "Voltar ao servidor",
       "server_fallback": "Servidor",

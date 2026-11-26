@@ -42,6 +42,18 @@
     "overview": {
       "title": "總覽"
     },
+    "share": {
+      "share_to_chatto": "分享至 Chatto",
+      "sharing_content": "分享中",
+      "files": "檔案",
+      "select_server": "選擇伺服器",
+      "choose_a_server": "選擇一個伺服器",
+      "select_room": "選擇房間",
+      "choose_a_room": "選擇一個房間",
+      "no_rooms_available": "沒有可用的房間",
+      "expired_or_unavailable": "此分享內容已過期或不再可用",
+      "load_failed": "載入分享內容失敗"
+    },
     "server_nav": {
       "back_to_server": "返回伺服器",
       "server_fallback": "伺服器",

@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { resolve } from '$app/paths';
 import { saveReturnUrl } from '$lib/auth/returnNavigation';
 import { segmentToServerId } from '$lib/navigation';
@@ -21,7 +21,13 @@ export const load: LayoutLoad = async ({ params, parent, url }) => {
   const serverId = segmentToServerId(params.serverId);
   const serverStore = serverId ? serverRegistry.tryGetStore(serverId) : undefined;
 
-  if (!serverId || !serverStore) redirectToLogin(url);
+  if (!serverId || !serverStore) {
+    // If segment is invalid and user is signed in, throw 404 to prevent redirect loop
+    if (user !== null && !serverId) {
+      throw error(404, 'Server not found');
+    }
+    redirectToLogin(url);
+  }
 
   if (serverRegistry.isOriginServer(serverId) && serverInfo?.setupRequired) {
     redirect(302, resolve('/setup'));
