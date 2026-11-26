@@ -3,7 +3,6 @@ import { serverIdToSegment } from '$lib/navigation';
 import { stashShare, takeShare, type ShareData } from '$lib/state/pendingShare';
 import { buildShareText } from '$lib/share/buildShareText';
 import { getLastUsedRoom, saveLastUsedRoom } from '$lib/share/lastUsedRoom';
-import { sortRooms } from '$lib/share/sortRooms';
 import { pickInitialRoom } from '$lib/share/pickInitialRoom';
 
 vi.mock('$lib/navigation', () => ({
@@ -206,15 +205,8 @@ describe('room preselection', () => {
 		// Save a last-used room
 		saveLastUsedRoom(serverId, lastUsedRoomId);
 
-		// Simulate room list loading
-		const rooms = [
-			{ id: 'room-c', name: 'Charlie', serverId },
-			{ id: 'room-a', name: 'Alpha', serverId },
-			{ id: 'room-b', name: 'Beta', serverId }
-		];
-
-		// Sort rooms
-		const sortedRooms = sortRooms(rooms);
+		// Simulate room list (sorted by buildShareRoomOptions in actual code)
+		const availableRoomIds = ['room-a', 'room-b', 'room-c'];
 
 		// Get last used room
 		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
@@ -224,7 +216,6 @@ describe('room preselection', () => {
 
 		// Use the actual pickInitialRoom logic
 		const currentSelectedRoomId = '';
-		const availableRoomIds = sortedRooms.map((r) => r.id);
 		const initialRoom = pickInitialRoom(currentSelectedRoomId, retrievedLastUsedRoomId, availableRoomIds);
 		
 		expect(initialRoom).toBe(lastUsedRoomId);
@@ -237,20 +228,15 @@ describe('room preselection', () => {
 		// Save a last-used room
 		saveLastUsedRoom(serverId, lastUsedRoomId);
 
-		// Simulate room list loading (last-used room not present)
-		const rooms = [
-			{ id: 'room-a', name: 'Alpha', serverId },
-			{ id: 'room-b', name: 'Beta', serverId }
-		];
+		// Simulate room list (last-used room not present)
+		const availableRoomIds = ['room-a', 'room-b'];
 
-		const sortedRooms = sortRooms(rooms);
 		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
 
 		expect(retrievedLastUsedRoomId).toBe(lastUsedRoomId);
 
 		// Use the actual pickInitialRoom logic
 		const currentSelectedRoomId = '';
-		const availableRoomIds = sortedRooms.map((r) => r.id);
 		const initialRoom = pickInitialRoom(currentSelectedRoomId, retrievedLastUsedRoomId, availableRoomIds);
 
 		// Should not preselect since room doesn't exist in list
@@ -264,16 +250,10 @@ describe('room preselection', () => {
 
 		saveLastUsedRoom(serverId, lastUsedRoomId);
 
-		const rooms = [
-			{ id: 'room-a', name: 'Alpha', serverId },
-			{ id: 'room-b', name: 'Beta', serverId }
-		];
-
-		const sortedRooms = sortRooms(rooms);
+		const availableRoomIds = ['room-a', 'room-b'];
 		const retrievedLastUsedRoomId = getLastUsedRoom(serverId);
 
 		// Use the actual pickInitialRoom logic
-		const availableRoomIds = sortedRooms.map((r) => r.id);
 		const initialRoom = pickInitialRoom(currentlySelectedRoomId, retrievedLastUsedRoomId, availableRoomIds);
 
 		// Should not preselect because a room is already selected

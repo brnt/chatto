@@ -52,7 +52,6 @@
       "no_rooms_available": "No rooms available",
       "expired_or_unavailable": "This shared content has expired or is no longer available",
       "load_failed": "Failed to load shared content",
-      "last_used": "Last used"
     },
     "server_nav": {
       "back_to_server": "Powrót do serwera",

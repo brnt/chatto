@@ -110,36 +110,18 @@
 				directMessageLabels()
 			);
 
-			// Get last used room for this server
-			const lastUsedRoomId = getLastUsedRoom(serverId);
-
-			// If last used room exists in the filtered list, pin it to the top
-			if (lastUsedRoomId) {
-				const lastUsedIndex = sortedRooms.findIndex((r) => r.id === lastUsedRoomId);
-				if (lastUsedIndex >= 0) {
-					// Remove from sorted position and add to top with "Last used" prefix
-					const [lastUsedRoom] = sortedRooms.splice(lastUsedIndex, 1);
-					rooms = [
-						{ ...lastUsedRoom, name: `${m('chat.share.last_used')}: ${lastUsedRoom.name}` },
-						...sortedRooms
-					];
-
-					// Preselect the last-used room if no room is currently selected
-					const roomIds = sortedRooms.map((r) => r.id);
-					roomIds.unshift(lastUsedRoomId); // Include the pinned room
-					const initialRoom = pickInitialRoom(currentSelectedRoomId, lastUsedRoomId, roomIds);
-					if (initialRoom) {
-						selectedRoomId = initialRoom;
-					}
-				} else {
-					// Last used room not in list anymore (filtered out or removed), just use sorted list
-					rooms = sortedRooms;
-				}
-			} else {
-				rooms = sortedRooms;
-			}
-
+			rooms = sortedRooms;
 			roomsLoadError = sortedRooms.length === 0;
+
+			// Preselect the last-used room if it exists in the filtered list
+			const lastUsedRoomId = getLastUsedRoom(serverId);
+			if (lastUsedRoomId) {
+				const roomIds = sortedRooms.map((r) => r.id);
+				const initialRoom = pickInitialRoom(currentSelectedRoomId, lastUsedRoomId, roomIds);
+				if (initialRoom) {
+					selectedRoomId = initialRoom;
+				}
+			}
 		}
 
 		// Set a timeout for error state if loading takes too long
