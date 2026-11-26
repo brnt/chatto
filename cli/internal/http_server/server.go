@@ -61,6 +61,7 @@ type HTTPServer struct {
 	trustedProxies      trustedProxySet
 	oauthClientResolver *OAuthClientResolver
 	browserSessions     *scs.SessionManager
+	shareDataStore      *shareDataStore
 
 	// Optional test hook used to make password-login revocation races deterministic.
 	passwordLoginSessionCreatedHook func(*gin.Context, string, uint64)
@@ -169,6 +170,7 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 		metrics:          newProcessMetrics(),
 		realtimeCatchUps: newRealtimeCatchUpAdmission(),
 		trustedProxies:   trustedProxies,
+		shareDataStore:   newShareDataStore(),
 	}
 	oauthClientResolver, err := newOAuthClientResolver(cfg.Config.Webserver.URL, nil)
 	if err != nil {
@@ -295,6 +297,7 @@ func (s *HTTPServer) setupRoutes() error {
 	s.setupOAuthRoutes()
 	s.setupAssetRoutes()
 	s.setupShieldRoutes()
+	s.setupShareTargetRoutes()
 
 	if err := s.setupFrontendRoutes(); err != nil {
 		return err

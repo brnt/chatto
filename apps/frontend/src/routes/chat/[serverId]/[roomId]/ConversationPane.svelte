@@ -56,6 +56,8 @@ thread IDs can change while the pane stays mounted.
   import { appState } from '$lib/state/globals.svelte';
   import { createComposerContext, getRoomMembers, type MessagesStore } from '$lib/state/room';
   import { useServerScope } from '$lib/state/server/scope.svelte';
+  import { takeShare, type ShareData } from '$lib/state/pendingShare';
+  import { buildShareText } from '$lib/share/buildShareText';
   import { EmptyState, Hint } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import EventList from './EventList.svelte';
@@ -67,6 +69,8 @@ thread IDs can change while the pane stays mounted.
   import { isMessagePostedEvent } from '@chatto/client/timeline/timelineEvents';
   import { ReadThroughTracker, type TimelineReadPosition } from './readThroughTracker';
   import { clearTimelineViewport } from '$lib/state/room/timelineViewport';
+  import { replaceState } from '$app/navigation';
+  import { page } from '$app/state';
 
   let {
     roomId,
@@ -332,6 +336,85 @@ thread IDs can change while the pane stays mounted.
   });
 
   let composerApi = $state<MessageComposerApi | null>(null);
+
+  // Handle Web Share Target data
+  let shareDataProcessed = $state(false);
+  $effect(() => {
+    const api = composerApi;
+    if (!api) return;
+    
+    // Check for shareId parameter
+    const shareIdParam = page.url.searchParams.get('shareId');
+    if (!shareIdParam || shareDataProcessed) return;
+    
+    // Narrow to non-null for use in async function
+    const shareId = shareIdParam;
+    shareDataProcessed = true;
+    
+    async function loadShareData() {
+      let shareData: ShareData | undefined;
+      
+      try {
+        // Try to take from stash first (avoids double-fetching single-use shares)
+        shareData = takeShare(shareId);
+        
+        // If not in stash, fetch from API
+        if (!shareData) {
+          const response = await fetch(`/api/share/${shareId}`);
+          if (!response.ok) {
+            if (response.status === 404 || response.status === 401) {
+              toast.error(m('chat.share.expired_or_unavailable'));
+            } else {
+              console.error('Failed to load share data:', response.status);
+            }
+            return;
+          }
+          shareData = await response.json();
+        }
+        
+        // If we have share data, process it
+        if (!shareData) return;
+        
+        // Convert base64 files to File objects
+        if (shareData.files && shareData.files.length > 0) {
+          const files = await Promise.all(
+            shareData.files.map(async (fileData: { data: string; contentType: string; filename: string }) => {
+              const binary = atob(fileData.data);
+              const bytes = new Uint8Array(binary.length);
+              for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: fileData.contentType });
+              return new File([blob], fileData.filename, { type: fileData.contentType });
+            })
+          );
+          
+          // Add files to composer
+          await api!.addFiles(files);
+        }
+        
+        // Insert text into composer as plain text (no quote markers)
+        const text = buildShareText(shareData);
+        if (text) {
+          api!.insertText(text);
+        }
+        
+        // Focus composer (cursor is already at the end after insertText)
+        api!.focus();
+      } catch (error) {
+        console.error('Error loading share data:', error);
+        toast.error(m('chat.share.load_failed'));
+      } finally {
+        // Always clear shareId from URL while preserving path, other params, and hash
+        const url = new URL(page.url);
+        url.searchParams.delete('shareId');
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- preserving current path/search/hash, cannot use resolve() for dynamic thread/message paths
+        replaceState(url.toString(), {});
+      }
+    }
+    
+    void loadShareData();
+  });
 
   // Apply a quote or reply that another pane requested before this composer existed.
   $effect(() => {

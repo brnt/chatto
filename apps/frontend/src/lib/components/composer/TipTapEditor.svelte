@@ -413,7 +413,23 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
 
       insertText: (text: string) => {
         if (e.isDestroyed || !text) return;
-        e.chain().focus().insertContent(text).run();
+        // Split by paragraphs (double newline) then by lines (single newline)
+        // to preserve line structure as paragraph nodes and hard breaks
+        const paragraphs = text.split('\n\n').filter((p) => p.length > 0);
+        const content = paragraphs.flatMap((para, idx) => {
+          const lines = para.split('\n');
+          const lineContent = lines.flatMap((line, lineIdx) => {
+            const parts: Array<{ type: string; text?: string }> = [];
+            if (line) parts.push({ type: 'text', text: line });
+            if (lineIdx < lines.length - 1) parts.push({ type: 'hardBreak' });
+            return parts;
+          });
+          return [
+            { type: 'paragraph', content: lineContent.length > 0 ? lineContent : undefined },
+            ...(idx < paragraphs.length - 1 ? [{ type: 'paragraph' }] : [])
+          ];
+        });
+        e.chain().focus().insertContent(content).run();
         tick().then(syncControls);
       },
 
